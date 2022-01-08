@@ -1,8 +1,6 @@
 
 #include <CanTp.h>
 
-#include <CanIf.h>
-
 #define CAN_IS_ON() (CanTp_State.general == CANTP_ON)
 
 
@@ -26,8 +24,6 @@ static struct CanTp_State_s {
 
 void CanTp_Init(const CanTp_ConfigType* CfgPtr)
 {
-    CanIf_ConfigType canIf_Config;
-
     if (CAN_IS_ON())
     {
         return;
@@ -36,9 +32,6 @@ void CanTp_Init(const CanTp_ConfigType* CfgPtr)
     CanTp_State.general = CANTP_ON;
     CanTp_State.tx = CANTP_TX_WAIT;
     CanTp_State.rx = CANTP_RX_WAIT;
-
-
-    CanIf_Init()
 }
 
 void CanTp_Shutdown(void)
