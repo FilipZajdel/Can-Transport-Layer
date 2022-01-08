@@ -10,10 +10,7 @@
 
 #include "Std_Types.h"
 #include "ComStack_Types.h"
-
-typedef struct {
-    uint8 init_data; // #TODO
-} CanTp_ConfigType;
+#include "CanTp_Types.h"
 
 void CanTp_Init ( const CanTp_ConfigType* CfgPtr );
 void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo );
@@ -26,5 +23,9 @@ Std_ReturnType CanTp_ReadParameter ( PduIdType id, TPParameterType parameter, ui
 void CanTp_MainFunction ( void );
 void CanTp_RxIndication ( PduIdType RxPduId, const PduInfoType* PduInfoPtr );
 void CanTp_TxConfirmation ( PduIdType TxPduId, Std_ReturnType result );
+
+
+#define CONFIG_CAN_TP_MAX_CHANNELS_COUNT (CanTp_ChannelCountType)8
+
 
 #endif /* CAN_TP_H */
