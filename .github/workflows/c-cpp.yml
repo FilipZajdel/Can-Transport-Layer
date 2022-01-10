@@ -14,17 +14,17 @@ jobs:
       fail-fast: false
       matrix:
         test_case:
-          - CanTp_CancelReceive
-          - CanTp_CancelTransmit
-          - CanTp_Read
-          - CanTp_ChangeParam
-          - CanTp_GetVersionInfo
+          # - CanTp_CancelReceive
+          # - CanTp_CancelTransmit
+          # - CanTp_Read
+          # - CanTp_ChangeParam
+          # - CanTp_GetVersionInfo
           - CanTp_Init
-          - CanTp_Main
-          - CanTp_RxInd
-          - CanTp_Shutdown
-          - CanTp_Transmit
-          - CanTp_TxConf
+          # - CanTp_Main
+          # - CanTp_RxInd
+          # - CanTp_Shutdown
+          # - CanTp_Transmit
+          # - CanTp_TxConf
     steps:
     - uses: actions/checkout@v2
     - name: make
