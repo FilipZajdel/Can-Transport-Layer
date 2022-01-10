@@ -4,45 +4,110 @@
 /*====================================================================================================================*\
  \@file CAN Transport Layer Types definitions
 
- FilipZajdel (c) 2022
+ FilipZajdel & michal-szymocha (c) 2022
 \*====================================================================================================================*/
+
+#include "ComStack_Types.h"
 
 typedef uint32_t CanTp_NSduId;
 
 typedef enum
 {
-    CANTP_CHANNEL_DIRECTION_TX,
-    CANTP_CHANNEL_DIRECTION_RX
-} CanTp_ChannelDirection;
+    CANTP_STANDARD = 0,
+    CANTP_NORMALFIXED,
+    CANTP_MIXED29BIT,
+    CANTP_MIXED,
+    CANTP_EXTENDED
+} CanTp_AddressingFormatType;
+
+typedef enum
+{
+    CANTP_ON = 0,
+    CANTP_OFF
+} CanTp_PaddingActivationType;
+
+typedef enum
+{
+    CANTP_PHYSICAL = 0,
+    CANTP_FUNCTIONAL
+} CanTp_TaTypeType;
 
 typedef struct
 {
-} CanTp_TxChannelConfigType;
+    uint8 nAe;
+} CanTp_NAeType;
 
 typedef struct
 {
-} CanTp_RxChannelConfigType;
-
-typedef union
-{
-    CanTp_TxChannelConfigType tx;
-    CanTp_RxChannelConfigType rx;
-} CanTp_ChannelConfigType;
+    uint8 nSa;
+} CanTp_NSaType;
 
 typedef struct
 {
-    CanTp_ChannelDirection  direction;
-    CanTp_ChannelConfigType config;
-    CanTp_NSduId            nSduId;
-} CanTp_NSduChannelType;
-
-typedef uint32_t CanTp_ChannelCountType;
+    uint8 nTa;
+} CanTp_NTaType;
 
 typedef struct
 {
-    CanTp_ChannelCountType channelCount;
-    CanTp_NSduChannelType  *channels;
+    uint16 id;
+    PduIdType ref;
+} CanTp_NPduType;
+
+typedef struct
+{
+    uint16 nPduConfirmationPduId;
+    PduIdType ref;
+} CanTp_FcNPduType;
+
+typedef struct
+{
+    uint8 bs;
+    uint32 nar;
+    uint32 nbr;
+    uint32 ncr;
+    CanTp_AddressingFormatType addressingFormat;
+    uint16 id;
+    CanTp_PaddingActivationType paddingActivation;
+    CanTp_TaTypeType taType;
+    uint16 wftMax;
+    uint32 STmin;
+    PduIdType ref;
+    const CanTp_NAeType *pNAe;
+    const CanTp_NSaType *pNSa;
+    const CanTp_NTaType *pNTa;
+    const CanTp_NPduType *rxNPdu;
+    const CanTp_FcNPduType *txFcNPdu;
+} CanTp_RxNSduType;
+
+typedef struct
+{
+    uint32 nas;
+    uint32 nbs;
+    uint32 ncs;
+    boolean tc;
+    CanTp_AddressingFormatType addressingFormat;
+    uint16 id;
+    CanTp_PaddingActivationType paddingActivation;
+    CanTp_TaTypeType taType;
+    PduIdType ref;
+    const CanTp_NAeType *pNAe;
+    const CanTp_NSaType *pNSa;
+    const CanTp_NTaType *pNTa;
+    const CanTp_NPduType *txNPdu;
+    const CanTp_FcNPduType *rxFcNPdu;
+} CanTp_txNSduType;
+
+typedef struct
+{
+    CanTp_RxNSduType rxNSdu;
+    CanTp_txNSduType txNSdu;
+} CanTp_ChannelType;
+
+typedef struct
+{
+    uint32 mainFunctionPeriod;
+    uint32 maxChannelCnt;
+    CanTp_ChannelType channel
 } CanTp_ConfigType;
-
 
 #endif /* CAN_TP_TYPES_H */
