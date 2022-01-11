@@ -99,15 +99,17 @@ typedef struct
 
 typedef struct
 {
-    CanTp_RxNSduType rxNSdu;
-    CanTp_txNSduType txNSdu;
+    CanTp_RxNSduType *rxNSdu;
+    uint32 rxNSduCount;
+    CanTp_txNSduType *txNSdu;
+    uint32 txNSduCount;
 } CanTp_ChannelType;
 
 typedef struct
 {
     uint32 mainFunctionPeriod;
     uint32 maxChannelCnt;
-    CanTp_ChannelType channel
+    CanTp_ChannelType *channels;
 } CanTp_ConfigType;
 
 #endif /* CAN_TP_TYPES_H */
