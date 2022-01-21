@@ -9,7 +9,7 @@
 
 #include "Std_Types.h"
 
-#define MEMPTR_NULL (void*)0
+#define NULL (void*)0
 
 typedef uint16 PduIdType;
 typedef uint32 PduLengthType;

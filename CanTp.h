@@ -25,7 +25,4 @@ void CanTp_RxIndication ( PduIdType RxPduId, const PduInfoType* PduInfoPtr );
 void CanTp_TxConfirmation ( PduIdType TxPduId, Std_ReturnType result );
 
 
-#define CONFIG_CAN_TP_MAX_CHANNELS_COUNT (CanTp_ChannelCountType)8
-
-
 #endif /* CAN_TP_H */

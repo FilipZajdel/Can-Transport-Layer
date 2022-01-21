@@ -2,32 +2,121 @@
 #include <CanTp.h>
 #include <CanTp_Types.h>
 
-#define CAN_IS_ON() (CanTp_State.general == CANTP_ON)
+#define CAN_IS_ON() (CanTp_State.activation == CANTP_ON)
+#define PARAM_UNUSED(param) (void)param
+#define PDUID_VALID(pduid) (pduid < CONFIG_CAN_TP_MAX_CHANNELS_COUNT)
 
-static struct CanTp_State_s {
-    enum General {
-        CANTP_OFF,
-        CANTP_ON
-    } general;
+static CanTp_State_t CanTp_State;
+static CanTp_ConfigType config =
+{   .channels =
+    {
+        {.rxNSdu = {
+            {
+                .id = 1,
+            },
+            {
+                .id = 2
+            },
+            {
+                .id = 3
+            },
+            {
+                .id = 4
+            },
+            {
+                .id = 5
+            }
+        },
+        .rxNSduCount = 5,
+        .txNSdu = {
+            {
+                .id = 1,
+            }
+        },
+        .txNSduCount = 1
+        },
+        {.rxNSdu = {
+            {.id = 6},
+            {.id = 7},
+            {.id = 8}
+        },
+        .rxNSduCount = 3,
+        .txNSdu = {
+            {.id = 6},
+            {.id = 7},
+            {.id = 8},
+            {.id = 9},
+            {.id = 10}
+        },
+        .txNSduCount = 5
+        },
+        {.rxNSduCount = 0,
+        .txNSdu = {
+            {.id = 11},
+            {.id = 12}
+        },
+        .txNSduCount = 2
+        },
+        {.rxNSdu = {
+            {.id = 13},
+            {.id = 14},
+            {.id = 15}
+        },
+        .rxNSduCount = 3,
+        .txNSduCount = 0
+        },
+        {.rxNSdu = {
+            {.id = 16},
+            {.id = 17},
+            {.id = 18},
+            {.id = 19}
+        },
+        .rxNSduCount = 4,
+        .txNSdu = {
+            {.id = 16},
+            {.id = 20},
+            {.id = 21},
+            {.id = 22}
+        },
+        .txNSduCount = 4
+        },
+        {.rxNSduCount = 0,
+        .txNSdu = {
+            {.id = 23},
+            {.id = 24},
+            {.id = 25},
+            {.id = 26},
+            {.id = 27}
+        },
+        .txNSduCount = 5
+        },
+        {.rxNSdu = {
+            {.id = 28}
+        },
+        .rxNSduCount = 1,
+        .txNSdu = {
+            {.id = 29},
+            {.id = 30}
+        },
+        .txNSduCount = 2
+        },
+        {.rxNSdu = {
+            {.id = 31},
+            {.id = 32},
+            {.id = 33},
+            {.id = 34}
+        },
+        .rxNSduCount = 4,
+        .txNSdu = {
+            {.id = 34},
+            {.id = 35},
+            {.id = 36}
+        },
+        .txNSduCount = 3
+        },
+    }
+};
 
-    enum TX {
-        CANTP_TX_WAIT,
-        CANTP_TX_PROCESSING
-    } tx;
-
-    enum RX {
-        CANTP_RX_WAIT,
-        CANTP_RX_PROCESSING
-    } rx;
-} CanTp_State;
-
-typedef struct
-{
-    const CanTp_NSduChannelType *nsduChannel;
-} CanTp_ChannelType;
-
-static CanTp_ChannelType CanTp_Channels[CONFIG_CAN_TP_MAX_CHANNELS_COUNT];
-static CanTp_ChannelCountType CanTp_ChannelsIterator;
 
 static inline void memzero(uint8_t *ptr, uint32_t size)
 {
@@ -36,61 +125,31 @@ static inline void memzero(uint8_t *ptr, uint32_t size)
     }
 }
 
-static inline const CanTp_NSduChannelType *findChannelnSdu(CanTp_NSduId nSduId)
+static inline const CanTp_ChannelType *getNSduFromPduId(PduIdType PduId)
 {
-    CanTp_ChannelCountType i;
-    const CanTp_NSduChannelType *nSduChannel = MEMPTR_NULL;
+    CanTp_ChannelType *channels = config.channels;
 
-    for (i=0; i<CanTp_ChannelsIterator; i++) {
-        if (CanTp_Channels[i].nsduChannel->nSduId == nSduId) {
-            nSduChannel = CanTp_Channels[i].nsduChannel;
-        }
+    if (!PDUID_VALID(PduId)) {
+        return NULL;
     }
 
-    return nSduChannel;
-}
-
-static void CanTp_CleanGlobals(void)
-{
-    memzero((uint8_t*)CanTp_Channels, sizeof(CanTp_Channels));
-    CanTp_ChannelsIterator = 0;
+    for (uint32 chan_itr = 0; chan_itr < CONFIG_CAN_TP_MAX_CHANNELS_COUNT; chan_itr++) {
+        // if (channels[chan_itr].rx)
+    }
 }
 
 void CanTp_Init(const CanTp_ConfigType* CfgPtr)
 {
-    boolean initOk = FALSE;
+    PARAM_UNUSED(CfgPtr);
 
-    CanTp_CleanGlobals();
-
-    if ((CfgPtr != MEMPTR_NULL) && (CfgPtr->channelCount <= CONFIG_CAN_TP_MAX_CHANNELS_COUNT)) {
-        uint32_t i;
-
-        for (i=0, initOk=TRUE; i < (CfgPtr->channelCount) && initOk; i++) {
-
-            if (findChannelnSdu(CfgPtr->channels[i].nSduId) != MEMPTR_NULL) {
-                initOk = FALSE;
-            } else if (CfgPtr->channels[i].direction == CANTP_CHANNEL_DIRECTION_TX
-                      || CfgPtr->channels[i].direction == CANTP_CHANNEL_DIRECTION_RX) {
-
-                CanTp_Channels[CanTp_ChannelsIterator].nsduChannel = &CfgPtr->channels[i];
-                CanTp_ChannelsIterator += 1;
-            } else {
-                initOk = FALSE;
-            }
-        }
-    }
-
-    if (initOk) {
-        CanTp_State.general = CANTP_ON;
-    } else {
-        CanTp_State.general = CANTP_OFF;
-    }
-
-    CanTp_State.tx = CANTP_TX_WAIT;
-    CanTp_State.rx = CANTP_RX_WAIT;
+    CanTp_State.txState = CANTP_TX_WAIT;
+    CanTp_State.rxState = CANTP_RX_WAIT;
+    CanTp_State.activation = CANTP_ON;
 }
 
 void CanTp_Shutdown(void)
 {
-    CanTp_State.general = CANTP_OFF;
+    CanTp_State.activation = CANTP_OFF;
+    CanTp_State.txState = CANTP_TX_WAIT;
+    CanTp_State.rxState = CANTP_RX_WAIT;
 }

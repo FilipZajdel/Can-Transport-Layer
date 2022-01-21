@@ -9,6 +9,11 @@
 
 #include "ComStack_Types.h"
 
+#define CONFIG_CAN_TP_MAX_CHANNELS_COUNT (uint32)8
+#define CONFIG_CANTP_MAX_TX_NSDU_PER_CHANNEL (uint32)5
+#define CONFIG_CANTP_MAX_RX_NSDU_PER_CHANNEL (uint32)5
+#define CONFIG_CANTP_MAIN_FUNCTION_PERIOD (uint32)1
+
 typedef uint32_t CanTp_NSduId;
 
 typedef enum
@@ -25,6 +30,26 @@ typedef enum
     CANTP_ON = 0,
     CANTP_OFF
 } CanTp_PaddingActivationType;
+
+/** @TODO: FZ: I'm not sure about the name of this type */
+typedef enum
+{
+    CANTP_TX_WAIT,
+    CANTP_TX_PROCESSING
+} CanTp_RxStateType;
+
+/** @TODO: FZ: I'm not sure about the name of this type */
+typedef enum
+{
+    CANTP_RX_WAIT,
+    CANTP_RX_PROCESSING
+} CanTp_TxStateType;
+
+typedef struct {
+    CanTp_PaddingActivationType activation;
+    CanTp_TxStateType txState;
+    CanTp_RxStateType rxState;
+} CanTp_State_t;
 
 typedef enum
 {
@@ -99,17 +124,15 @@ typedef struct
 
 typedef struct
 {
-    CanTp_RxNSduType *rxNSdu;
+    CanTp_RxNSduType rxNSdu[CONFIG_CANTP_MAX_RX_NSDU_PER_CHANNEL];
     uint32 rxNSduCount;
-    CanTp_txNSduType *txNSdu;
+    CanTp_txNSduType txNSdu[CONFIG_CANTP_MAX_TX_NSDU_PER_CHANNEL];
     uint32 txNSduCount;
 } CanTp_ChannelType;
 
 typedef struct
 {
-    uint32 mainFunctionPeriod;
-    uint32 maxChannelCnt;
-    CanTp_ChannelType *channels;
+    CanTp_ChannelType channels[CONFIG_CAN_TP_MAX_CHANNELS_COUNT];
 } CanTp_ConfigType;
 
 #endif /* CAN_TP_TYPES_H */
