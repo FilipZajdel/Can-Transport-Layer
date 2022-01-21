@@ -1,0 +1,15 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+Language: Cpp
+PointerAlignment: Right
+ColumnLimit: 100
+BraceWrapping:
+  AfterControlStatement: false
+  AfterEnum:       true
+  AfterFunction:   true
+  AfterObjCDeclaration: true
+  AfterStruct:     true
+  AfterUnion:      true
+  BeforeElse:      false
+BreakBeforeBraces: Custom
+# BreakBeforeBraces: Custom

@@ -45,7 +45,8 @@ typedef enum
     CANTP_RX_PROCESSING
 } CanTp_TxStateType;
 
-typedef struct {
+typedef struct
+{
     CanTp_PaddingActivationType activation;
     CanTp_TxStateType txState;
     CanTp_RxStateType rxState;

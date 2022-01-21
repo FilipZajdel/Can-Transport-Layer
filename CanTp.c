@@ -7,121 +7,39 @@
 #define PDUID_VALID(pduid) (pduid < CONFIG_CAN_TP_MAX_CHANNELS_COUNT)
 
 static CanTp_State_t CanTp_State;
-static CanTp_ConfigType config =
-{   .channels =
-    {
-        {.rxNSdu = {
-            {
-                .id = 1,
-            },
-            {
-                .id = 2
-            },
-            {
-                .id = 3
-            },
-            {
-                .id = 4
-            },
-            {
-                .id = 5
-            }
-        },
-        .rxNSduCount = 5,
-        .txNSdu = {
-            {
-                .id = 1,
-            }
-        },
-        .txNSduCount = 1
-        },
-        {.rxNSdu = {
-            {.id = 6},
-            {.id = 7},
-            {.id = 8}
-        },
-        .rxNSduCount = 3,
-        .txNSdu = {
-            {.id = 6},
-            {.id = 7},
-            {.id = 8},
-            {.id = 9},
-            {.id = 10}
-        },
-        .txNSduCount = 5
-        },
+static CanTp_ConfigType config = {
+    .channels = {
+        {.rxNSdu = {{.id = 1}, {.id = 2}, {.id = 3}, {.id = 4}, {.id = 5}},
+         .rxNSduCount = 5,
+         .txNSdu = {{.id = 1}},
+         .txNSduCount = 1},
+        {.rxNSdu = {{.id = 6}, {.id = 7}, {.id = 8}},
+         .rxNSduCount = 3,
+         .txNSdu = {{.id = 6}, {.id = 7}, {.id = 8}, {.id = 9}, {.id = 10}},
+         .txNSduCount = 5},
+        {.rxNSduCount = 0, .txNSdu = {{.id = 11}, {.id = 12}}, .txNSduCount = 2},
+        {.rxNSdu = {{.id = 13}, {.id = 14}, {.id = 15}}, .rxNSduCount = 3, .txNSduCount = 0},
+        {.rxNSdu = {{.id = 16}, {.id = 17}, {.id = 18}, {.id = 19}},
+         .rxNSduCount = 4,
+         .txNSdu = {{.id = 16}, {.id = 20}, {.id = 21}, {.id = 22}},
+         .txNSduCount = 4},
         {.rxNSduCount = 0,
-        .txNSdu = {
-            {.id = 11},
-            {.id = 12}
-        },
-        .txNSduCount = 2
-        },
-        {.rxNSdu = {
-            {.id = 13},
-            {.id = 14},
-            {.id = 15}
-        },
-        .rxNSduCount = 3,
-        .txNSduCount = 0
-        },
-        {.rxNSdu = {
-            {.id = 16},
-            {.id = 17},
-            {.id = 18},
-            {.id = 19}
-        },
-        .rxNSduCount = 4,
-        .txNSdu = {
-            {.id = 16},
-            {.id = 20},
-            {.id = 21},
-            {.id = 22}
-        },
-        .txNSduCount = 4
-        },
-        {.rxNSduCount = 0,
-        .txNSdu = {
-            {.id = 23},
-            {.id = 24},
-            {.id = 25},
-            {.id = 26},
-            {.id = 27}
-        },
-        .txNSduCount = 5
-        },
-        {.rxNSdu = {
-            {.id = 28}
-        },
-        .rxNSduCount = 1,
-        .txNSdu = {
-            {.id = 29},
-            {.id = 30}
-        },
-        .txNSduCount = 2
-        },
-        {.rxNSdu = {
-            {.id = 31},
-            {.id = 32},
-            {.id = 33},
-            {.id = 34}
-        },
-        .rxNSduCount = 4,
-        .txNSdu = {
-            {.id = 34},
-            {.id = 35},
-            {.id = 36}
-        },
-        .txNSduCount = 3
-        },
-    }
-};
-
+         .txNSdu = {{.id = 23}, {.id = 24}, {.id = 25}, {.id = 26}, {.id = 27}},
+         .txNSduCount = 5},
+        {.rxNSdu = {{.id = 28}},
+         .rxNSduCount = 1,
+         .txNSdu = {{.id = 29}, {.id = 30}},
+         .txNSduCount = 2},
+        {.rxNSdu = {{.id = 31}, {.id = 32}, {.id = 33}, {.id = 34}},
+         .rxNSduCount = 4,
+         .txNSdu = {{.id = 34}, {.id = 35}, {.id = 36}},
+         .txNSduCount = 3},
+    }};
 
 static inline void memzero(uint8_t *ptr, uint32_t size)
 {
-    for (uint32_t i=0; i<size; i++) {
-        *(ptr+i) = 0;
+    for (uint32_t i = 0; i < size; i++) {
+        *(ptr + i) = 0;
     }
 }
 
@@ -138,7 +56,7 @@ static inline const CanTp_ChannelType *getNSduFromPduId(PduIdType PduId)
     }
 }
 
-void CanTp_Init(const CanTp_ConfigType* CfgPtr)
+void CanTp_Init(const CanTp_ConfigType *CfgPtr)
 {
     PARAM_UNUSED(CfgPtr);
 

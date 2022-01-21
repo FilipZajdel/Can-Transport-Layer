@@ -3,3 +3,5 @@
 *.vscode
 *.o
 bin
+Std_Types.h
+ComStack_Types.h

@@ -10,7 +10,7 @@
  Andrzej Wetula (c) 2020
 \*====================================================================================================================*/
 
-#include <stdint.h>     /* Często spotykane uproszczenie przez zastosowanie standardowej biblioteki */
+#include <stdint.h> /* Często spotykane uproszczenie przez zastosowanie standardowej biblioteki */
 
 /* [SWS_Platform_00026] */
 typedef unsigned char boolean;
@@ -66,12 +66,11 @@ typedef enum
 
 /* [SWS_Platform_00056] */
 #ifndef TRUE
-#define TRUE    1
+#define TRUE 1
 #endif
 
 #ifndef FALSE
-#define FALSE   0
+#define FALSE 0
 #endif
-
 
 #endif /* PLATFORM_TYPES_H */
