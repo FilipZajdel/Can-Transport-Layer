@@ -15,6 +15,7 @@
 #include <test_CanTp_Transmit.c>
 #include <test_CanTp_TxConfirmation.c>
 
+DEFINE_FFF_GLOBALS;
 
 TEST_LIST = {
     CanTp_CancelReceive_TEST_LIST,

@@ -2,38 +2,109 @@
 #include <CanTp.h>
 #include <CanTp_Types.h>
 
-#define CAN_IS_ON() (CanTp_State.activation == CANTP_ON)
+#define CANTP_IS_ON() (CanTp_State.activation == CANTP_ON)
 #define PARAM_UNUSED(param) (void)param
 #define PDUID_VALID(pduid) (pduid < CONFIG_CAN_TP_MAX_CHANNELS_COUNT)
+
+#define ARR_SIZE(arr) sizeof(arr) / (sizeof(*arr))
+
+typedef enum
+{
+    CANTP_NSDU_DIRECTION_TX,
+    CANTP_NSDU_DIRECTION_RX
+} CanTp_NSduDirection_t;
 
 static CanTp_State_t CanTp_State;
 static CanTp_ConfigType config = {
     .channels = {
-        {.rxNSdu = {{.id = 1}, {.id = 2}, {.id = 3}, {.id = 4}, {.id = 5}},
+        {// Channel 0
+         .rxNSdu = {{.id = 1}, {.id = 2}, {.id = 3}, {.id = 4}, {.id = 5}},
          .rxNSduCount = 5,
          .txNSdu = {{.id = 1}},
          .txNSduCount = 1},
-        {.rxNSdu = {{.id = 6}, {.id = 7}, {.id = 8}},
+        {// Channel 1
+         .rxNSdu = {{.id = 6}, {.id = 7}, {.id = 8}},
          .rxNSduCount = 3,
          .txNSdu = {{.id = 6}, {.id = 7}, {.id = 8}, {.id = 9}, {.id = 10}},
          .txNSduCount = 5},
-        {.rxNSduCount = 0, .txNSdu = {{.id = 11}, {.id = 12}}, .txNSduCount = 2},
-        {.rxNSdu = {{.id = 13}, {.id = 14}, {.id = 15}}, .rxNSduCount = 3, .txNSduCount = 0},
-        {.rxNSdu = {{.id = 16}, {.id = 17}, {.id = 18}, {.id = 19}},
+        {// Channel 2
+         .rxNSduCount = 0,
+         .txNSdu = {{.id = 11}, {.id = 12}},
+         .txNSduCount = 2},
+        {// Channel 3
+         .rxNSdu = {{.id = 13}, {.id = 14}, {.id = 15}},
+         .rxNSduCount = 3,
+         .txNSduCount = 0},
+        {// Channel 4
+         .rxNSdu = {{.id = 16}, {.id = 17}, {.id = 18}, {.id = 19}},
          .rxNSduCount = 4,
          .txNSdu = {{.id = 16}, {.id = 20}, {.id = 21}, {.id = 22}},
          .txNSduCount = 4},
-        {.rxNSduCount = 0,
+        {// Channel 5
+         .rxNSduCount = 0,
          .txNSdu = {{.id = 23}, {.id = 24}, {.id = 25}, {.id = 26}, {.id = 27}},
          .txNSduCount = 5},
-        {.rxNSdu = {{.id = 28}},
+        {// Channel 6
+         .rxNSdu = {{.id = 28}},
          .rxNSduCount = 1,
          .txNSdu = {{.id = 29}, {.id = 30}},
          .txNSduCount = 2},
-        {.rxNSdu = {{.id = 31}, {.id = 32}, {.id = 33}, {.id = 34}},
+        {// Channel 7
+         .rxNSdu = {{.id = 31}, {.id = 32}, {.id = 33}, {.id = 34}},
          .rxNSduCount = 4,
          .txNSdu = {{.id = 34}, {.id = 35}, {.id = 36}},
          .txNSduCount = 3},
+    }};
+
+static CanTp_State_t CanTp_State = {
+    .activation = CANTP_OFF,
+    .currentTime = 0,
+    .rxConnections =
+        {
+            {.nsdu = &config.channels[0].rxNSdu[0], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[0].rxNSdu[1], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[0].rxNSdu[2], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[0].rxNSdu[3], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[0].rxNSdu[4], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[1].rxNSdu[0], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[1].rxNSdu[1], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[1].rxNSdu[2], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[3].rxNSdu[0], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[3].rxNSdu[1], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[3].rxNSdu[2], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[4].rxNSdu[0], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[4].rxNSdu[1], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[4].rxNSdu[2], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[4].rxNSdu[3], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[6].rxNSdu[0], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[7].rxNSdu[0], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[7].rxNSdu[1], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[7].rxNSdu[2], .state = CANTP_RX_WAIT},
+            {.nsdu = &config.channels[7].rxNSdu[3], .state = CANTP_RX_WAIT},
+        },
+    .txConnections = {
+        {.nsdu = &config.channels[0].txNSdu[0], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[1].txNSdu[0], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[1].txNSdu[1], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[1].txNSdu[2], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[1].txNSdu[3], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[1].txNSdu[4], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[2].txNSdu[0], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[2].txNSdu[1], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[4].txNSdu[0], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[4].txNSdu[1], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[4].txNSdu[2], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[4].txNSdu[3], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[5].txNSdu[0], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[5].txNSdu[1], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[5].txNSdu[2], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[5].txNSdu[3], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[5].txNSdu[4], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[6].txNSdu[0], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[6].txNSdu[1], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[7].txNSdu[0], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[7].txNSdu[1], .state = CANTP_TX_WAIT},
+        {.nsdu = &config.channels[7].txNSdu[2], .state = CANTP_TX_WAIT},
     }};
 
 static inline void memzero(uint8_t *ptr, uint32_t size)
@@ -43,31 +114,79 @@ static inline void memzero(uint8_t *ptr, uint32_t size)
     }
 }
 
-static inline const CanTp_ChannelType *getNSduFromPduId(PduIdType PduId)
+static inline CanTp_TxConnection *getTxConnection(PduIdType PduId)
 {
     CanTp_ChannelType *channels = config.channels;
+    CanTp_TxConnection *txConnection = NULL;
 
-    if (!PDUID_VALID(PduId)) {
-        return NULL;
+    for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.txConnections) && !txConnection;
+         connItr++) {
+        if (CanTp_State.txConnections[connItr].nsdu->id == PduId) {
+            txConnection = &CanTp_State.txConnections[connItr];
+        }
     }
 
-    for (uint32 chan_itr = 0; chan_itr < CONFIG_CAN_TP_MAX_CHANNELS_COUNT; chan_itr++) {
-        // if (channels[chan_itr].rx)
+    return txConnection;
+}
+
+static inline CanTp_RxConnection *getRxConnection(PduIdType PduId)
+{
+    CanTp_ChannelType *channels = config.channels;
+    CanTp_RxConnection *rxConnection = NULL;
+
+    for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections) && !rxConnection;
+         connItr++) {
+        if (CanTp_State.rxConnections[connItr].nsdu->id == PduId) {
+            rxConnection = &CanTp_State.rxConnections[connItr];
+        }
     }
+
+    return rxConnection;
 }
 
 void CanTp_Init(const CanTp_ConfigType *CfgPtr)
 {
     PARAM_UNUSED(CfgPtr);
 
-    CanTp_State.txState = CANTP_TX_WAIT;
-    CanTp_State.rxState = CANTP_RX_WAIT;
+    /** Note: rxConnections and txConnections have the same size */
+    for (uint32 connItr=0; connItr<ARR_SIZE(CanTp_State.rxConnections); connItr++) {
+        CanTp_State.rxConnections[connItr].state = CANTP_RX_WAIT;
+        CanTp_State.rxConnections[connItr].state = CANTP_TX_WAIT;
+    }
+
     CanTp_State.activation = CANTP_ON;
+    CanTp_State.currentTime = 0;
 }
 
 void CanTp_Shutdown(void)
 {
     CanTp_State.activation = CANTP_OFF;
-    CanTp_State.txState = CANTP_TX_WAIT;
-    CanTp_State.rxState = CANTP_RX_WAIT;
+
+    for (uint32 connItr=0; connItr<ARR_SIZE(CanTp_State.rxConnections); connItr++) {
+        CanTp_State.rxConnections[connItr].state = CANTP_RX_WAIT;
+        CanTp_State.rxConnections[connItr].state = CANTP_TX_WAIT;
+    }
+}
+
+Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
+{
+    Std_ReturnType result = E_NOT_OK;
+    CanTp_TxConnection *connection = getTxConnection(TxPduId);
+
+    if (connection != NULL) {
+    }
+}
+
+static void CanTp_TxIteration(void) {}
+
+static void CanTp_RxIteration(void) {}
+
+void CanTp_MainFunction(void)
+{
+    if (CANTP_IS_ON()) {
+        CanTp_TxIteration();
+        CanTp_RxIteration();
+    }
+
+    CanTp_State.currentTime += CONFIG_CANTP_MAIN_FUNCTION_PERIOD;
 }
