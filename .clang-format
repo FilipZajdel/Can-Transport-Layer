@@ -12,4 +12,4 @@ BraceWrapping:
   AfterUnion:      true
   BeforeElse:      false
 BreakBeforeBraces: Custom
-# BreakBeforeBraces: Custom
+IndentCaseLabels: true

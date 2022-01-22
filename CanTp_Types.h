@@ -189,14 +189,26 @@ typedef struct
     CanTp_ChannelType channels[CONFIG_CAN_TP_MAX_CHANNELS_COUNT];
 } CanTp_ConfigType;
 
+typedef enum
+{
+    TX_CONNECTION_SF_PROCESS,
+    TX_CONNECTION_FF_PROCESS
+} CanTp_TxConnectionState;
+
+typedef enum
+{
+    SOME_STATE
+} CanTp_RxConnectionState;
+
 /**
  * @brief Type for holding a RX connection info on a given RxNsdu
  */
 typedef struct
 {
-    CanTp_RxNSduState state;
-    /** Pointer to nsdu in CanTp_Config.channels */
+    CanTp_RxNSduState activation;
+    /** Points to nsdu in CanTp_Config.channels */
     CanTp_RxNSduType *nsdu;
+    CanTp_RxConnectionState state;
 
     /**
      * Fill it with other necessary variables
@@ -210,9 +222,10 @@ typedef struct
  */
 typedef struct
 {
-    CanTp_TxNSduState state;
-    /** Pointer to nsdu in CanTp_Config.channels */
+    CanTp_TxNSduState activation;
+    /** Points to nsdu in CanTp_Config.channels */
     CanTp_TxNSduType *nsdu;
+    CanTp_TxConnectionState state;
 
     /**
      * Fill it with other necessary variables
