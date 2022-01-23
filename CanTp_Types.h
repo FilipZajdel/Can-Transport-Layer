@@ -13,10 +13,13 @@
 #define CONFIG_CANTP_MAX_TX_NSDU_PER_CHANNEL (uint32)5
 #define CONFIG_CANTP_MAX_RX_NSDU_PER_CHANNEL (uint32)5
 #define CONFIG_CANTP_MAIN_FUNCTION_PERIOD (uint32)1
+#define CONFIG_CAN_2_0_OR_CAN_FD
+// #define CONFIG_CAN_FD_ONLY
 
-/** If can 2.0 and can FD is used */
-#define FRAME_SF_MAX_LEN (8)
-#define FRAME_FF_MAX_LEN (4095)
+#if defined(CONFIG_CAN_2_0_OR_CAN_FD) && defined(CONFIG_CAN_FD_ONLY)
+#error                                                                                             \
+    "CanTp Configuration Error: Only one of those can be defined at a time CONFIG_CAN_2_0_OR_CAN_FD or CONFIG_CAN_FD_ONLY"
+#endif
 
 typedef uint32_t CanTp_NSduId;
 
@@ -113,7 +116,7 @@ typedef struct
     /**
      * @brief Value in second of the N_As timeout. N_As is the time for
      * transmission of a CAN frame (any N_PDU) on the part of the sender.
-    */
+     */
     uint32 nas;
 
     /**
@@ -191,8 +194,12 @@ typedef struct
 
 typedef enum
 {
-    TX_CONNECTION_SF_PROCESS,
-    TX_CONNECTION_FF_PROCESS
+    CANTP_TX_STATE_FREE,
+    CANTP_TX_STATE_SF_SEND_REQ,
+    CANTP_TX_STATE_FF_SEND_REQ,
+    CANTP_TX_STATE_CF_SEND_REQ,
+    CANTP_TX_STATE_WAIT_FC,
+    CANTP_TX_STATE_WAIT_CANIF_CONFIRM
 } CanTp_TxConnectionState;
 
 typedef enum
@@ -243,13 +250,15 @@ typedef struct
      * @brief Any time a new nsdu is started to be received
      * an entry corresponding to its id is modified
      */
-    CanTp_RxConnection rxConnections[CONFIG_CAN_TP_MAX_CHANNELS_COUNT*CONFIG_CANTP_MAX_RX_NSDU_PER_CHANNEL];
+    CanTp_RxConnection
+        rxConnections[CONFIG_CAN_TP_MAX_CHANNELS_COUNT * CONFIG_CANTP_MAX_RX_NSDU_PER_CHANNEL];
 
     /**
      * @brief Any time a new nsdu is started to be received
      * an entry corresponding to its id is modified
      */
-    CanTp_TxConnection txConnections[CONFIG_CAN_TP_MAX_CHANNELS_COUNT*CONFIG_CANTP_MAX_TX_NSDU_PER_CHANNEL];
+    CanTp_TxConnection
+        txConnections[CONFIG_CAN_TP_MAX_CHANNELS_COUNT * CONFIG_CANTP_MAX_TX_NSDU_PER_CHANNEL];
 } CanTp_State_t;
 
 #endif /* CAN_TP_TYPES_H */

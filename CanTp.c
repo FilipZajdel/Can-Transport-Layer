@@ -114,7 +114,7 @@ static inline void memzero(uint8_t *ptr, uint32_t size)
     }
 }
 
-static inline CanTp_TxConnection *getTxConnection(PduIdType PduId)
+static CanTp_TxConnection *getTxConnection(PduIdType PduId)
 {
     CanTp_ChannelType *channels = config.channels;
     CanTp_TxConnection *txConnection = NULL;
@@ -129,7 +129,7 @@ static inline CanTp_TxConnection *getTxConnection(PduIdType PduId)
     return txConnection;
 }
 
-static inline CanTp_RxConnection *getRxConnection(PduIdType PduId)
+static CanTp_RxConnection *getRxConnection(PduIdType PduId)
 {
     CanTp_ChannelType *channels = config.channels;
     CanTp_RxConnection *rxConnection = NULL;
@@ -142,6 +142,25 @@ static inline CanTp_RxConnection *getRxConnection(PduIdType PduId)
     }
 
     return rxConnection;
+}
+
+static uint32 determineMaxTxNsduLength(CanTp_TxNSduType *nsdu)
+{
+    uint32 maxLen = 0;
+
+#if defined(CONFIG_CAN_2_0_OR_CAN_FD)
+    if (nsdu) {
+        if ((nsdu->addressingFormat == CANTP_STANDARD) ||
+            (nsdu->addressingFormat == CANTP_NORMALFIXED)) {
+            maxLen = 7;
+        } else {
+            maxLen = 6;
+        }
+#elif defined(CONFIG_CAN_FD_ONLY)
+    // @TODO: Implement determineMaxTxNsduLength for CAN_FD
+#endif
+    }
+    return maxLen;
 }
 
 void CanTp_Init(const CanTp_ConfigType *CfgPtr)
@@ -173,8 +192,8 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
 {
     Std_ReturnType result = E_NOT_OK;
     CanTp_TxNSduType *nsdu = NULL;
+    uint32 maxNsduLength = 0;
     CanTp_TxConnection *connection = getTxConnection(TxPduId);
-    boolean frag_needed = FALSE;
 
     if (connection != NULL) {
         return result;
@@ -186,15 +205,19 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
 
     connection->activation = CANTP_TX_PROCESSING;
     nsdu = connection->nsdu;
+    maxNsduLength = determineMaxTxNsduLength(nsdu);
+    result = E_OK;
 
-    // @TODO: Check addressing formats
-    if (PduInfoPtr->SduLength < FRAME_SF_MAX_LEN) {
-        // No need to do the fragmentation
-        connection->state = TX_CONNECTION_SF_PROCESS;
+    /** Note: Only SF and FF transmission is triggered here. CF frames and FC
+     * are triggered from RX/TX state machines.
+     */
+    if (PduInfoPtr->SduLength < maxNsduLength) {
+        connection->state = CANTP_TX_STATE_SF_SEND_REQ;
     } else {
-        // Frame needs to be fragmented
-        connection->state = TX_CONNECTION_FF_PROCESS;
+        connection->state = CANTP_TX_STATE_FF_SEND_REQ;
     }
+
+    return result;
 }
 
 /**
@@ -205,9 +228,10 @@ static void CanTp_TxIteration(void)
     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.txConnections); connItr++) {
         CanTp_TxConnection *conn = &CanTp_State.txConnections[connItr];
         switch (conn->state) {
-            case TX_CONNECTION_SF_PROCESS:
+            case CANTP_TX_STATE_SF_SEND_REQ:
+
                 break;
-            case TX_CONNECTION_FF_PROCESS:
+            case CANTP_TX_STATE_FF_SEND_REQ:
                 break;
             default:
                 break;
