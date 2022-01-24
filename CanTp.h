@@ -11,6 +11,16 @@
 #include "ComStack_Types.h"
 #include "Std_Types.h"
 
+/**
+ * @brief Runtime Errors
+ */
+#define CANTP_E_PADDING 0x70
+#define CANTP_E_INVALID_TATYPE 0x90
+#define CANTP_E_OPER_NOT_SUPPORTED 0xA0
+#define CANTP_E_COM 0xB0
+#define CANTP_E_RX_COM 0xC0
+#define CANTP_E_TX_COM 0xD0
+
 void CanTp_Init(const CanTp_ConfigType *CfgPtr);
 void CanTp_GetVersionInfo(Std_VersionInfoType *versioninfo);
 void CanTp_Shutdown(void);
