@@ -1,6 +1,9 @@
 
+#include <CanIf.h>
 #include <CanTp.h>
 #include <CanTp_Types.h>
+#include <Det.h>
+#include <PduR_CanTp.h>
 
 #define CANTP_IS_ON() (CanTp_State.activation == CANTP_ON)
 #define PARAM_UNUSED(param) (void)param
