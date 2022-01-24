@@ -11,6 +11,11 @@
 
 #define ARR_SIZE(arr) sizeof(arr) / (sizeof(*arr))
 
+#define CANTP_N_PCI_TYPE_SF 0x00
+#define CANTP_N_PCI_TYPE_FF 0x01
+#define CANTP_N_PCI_TYPE_CF 0x02
+#define CANTP_N_PCI_TYPE_FC 0x03
+
 typedef enum
 {
     CANTP_NSDU_DIRECTION_TX,
@@ -223,6 +228,64 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
     return result;
 }
 
+void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
+{
+    Std_ReturnType result = E_NOT_OK;
+    CanTp_RxNSduType *nsdu = NULL;
+    CanTp_RxConnection *connection = getRxConnection(RxPduId);
+    uint8 addrModeByteSkip = 0;
+    if (connection != NULL) {
+        return result;
+    }
+
+    if (connection->activation == CANTP_RX_PROCESSING) {
+        return result;
+    }
+
+    nsdu = connection->nsdu;
+
+    if ((nsdu->paddingActivation == CANTP_ON) && (PduInfoPtr->SduLength < 8)) {
+        Det_ReportRuntimeError(CANTP_MODULE_ID, 0, CANTP_RX_INDICATION_API_ID, CANTP_E_PADDING);
+        return result;
+    }
+
+    connection->activation = CANTP_RX_PROCESSING;
+
+    switch (nsdu->addressingFormat) {
+        case CANTP_EXTENDED:
+        case CANTP_MIXED:
+        case CANTP_MIXED29BIT:
+            addrModeByteSkip = 1;
+            break;
+        case CANTP_STANDARD:
+        case CANTP_NORMALFIXED:
+            addrModeByteSkip = 0;
+            break;
+        default:
+            return result;
+            break;
+    }
+
+    switch (((PduInfoPtr->SduDataPtr[addrModeByteSkip]) >> 4) & 0xF) {
+        case CANTP_N_PCI_TYPE_FF:
+            break;
+        case CANTP_N_PCI_TYPE_SF:
+            break;
+        case CANTP_N_PCI_TYPE_CF:
+            break;
+        case CANTP_N_PCI_TYPE_FC:
+            break;
+        default:
+            return result;
+            break;
+    }
+
+    /* put somwhere to get buffer */
+    // PduR_CanTpStartOfReception(RxPduId, PduInfoPtr,  );
+
+    return result;
+}
+
 /**
  * @brief Implements the TX state machine
  */
@@ -245,7 +308,16 @@ static void CanTp_TxIteration(void)
 /**
  * @brief Implements the RX state machine
  */
-static void CanTp_RxIteration(void) {}
+static void CanTp_RxIteration(void)
+{
+    for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections); connItr++) {
+        CanTp_RxConnection *conn = &CanTp_State.rxConnections[connItr];
+        switch (conn->state) {
+            default:
+                break;
+        }
+    }
+}
 
 void CanTp_MainFunction(void)
 {
