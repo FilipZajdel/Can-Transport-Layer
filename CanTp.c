@@ -43,25 +43,7 @@ static CanTp_ConfigType config = {
          .rxNSdu = {{.id = 13}, {.id = 14}, {.id = 15}},
          .rxNSduCount = 3,
          .txNSduCount = 0},
-        {// Channel 4
-         .rxNSdu = {{.id = 16}, {.id = 17}, {.id = 18}, {.id = 19}},
-         .rxNSduCount = 4,
-         .txNSdu = {{.id = 16}, {.id = 20}, {.id = 21}, {.id = 22}},
-         .txNSduCount = 4},
-        {// Channel 5
-         .rxNSduCount = 0,
-         .txNSdu = {{.id = 23}, {.id = 24}, {.id = 25}, {.id = 26}, {.id = 27}},
-         .txNSduCount = 5},
-        {// Channel 6
-         .rxNSdu = {{.id = 28}},
-         .rxNSduCount = 1,
-         .txNSdu = {{.id = 29}, {.id = 30}},
-         .txNSduCount = 2},
-        {// Channel 7
-         .rxNSdu = {{.id = 31}, {.id = 32}, {.id = 33}, {.id = 34}},
-         .rxNSduCount = 4,
-         .txNSdu = {{.id = 34}, {.id = 35}, {.id = 36}},
-         .txNSduCount = 3},
+
     }};
 
 static CanTp_State_t CanTp_State = {
@@ -80,15 +62,7 @@ static CanTp_State_t CanTp_State = {
             {.nsdu = &config.channels[3].rxNSdu[0], .activation = CANTP_RX_WAIT},
             {.nsdu = &config.channels[3].rxNSdu[1], .activation = CANTP_RX_WAIT},
             {.nsdu = &config.channels[3].rxNSdu[2], .activation = CANTP_RX_WAIT},
-            {.nsdu = &config.channels[4].rxNSdu[0], .activation = CANTP_RX_WAIT},
-            {.nsdu = &config.channels[4].rxNSdu[1], .activation = CANTP_RX_WAIT},
-            {.nsdu = &config.channels[4].rxNSdu[2], .activation = CANTP_RX_WAIT},
-            {.nsdu = &config.channels[4].rxNSdu[3], .activation = CANTP_RX_WAIT},
-            {.nsdu = &config.channels[6].rxNSdu[0], .activation = CANTP_RX_WAIT},
-            {.nsdu = &config.channels[7].rxNSdu[0], .activation = CANTP_RX_WAIT},
-            {.nsdu = &config.channels[7].rxNSdu[1], .activation = CANTP_RX_WAIT},
-            {.nsdu = &config.channels[7].rxNSdu[2], .activation = CANTP_RX_WAIT},
-            {.nsdu = &config.channels[7].rxNSdu[3], .activation = CANTP_RX_WAIT},
+
         },
     .txConnections = {
         {.nsdu = &config.channels[0].txNSdu[0], .activation = CANTP_TX_WAIT},
@@ -99,20 +73,7 @@ static CanTp_State_t CanTp_State = {
         {.nsdu = &config.channels[1].txNSdu[4], .activation = CANTP_TX_WAIT},
         {.nsdu = &config.channels[2].txNSdu[0], .activation = CANTP_TX_WAIT},
         {.nsdu = &config.channels[2].txNSdu[1], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[4].txNSdu[0], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[4].txNSdu[1], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[4].txNSdu[2], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[4].txNSdu[3], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[5].txNSdu[0], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[5].txNSdu[1], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[5].txNSdu[2], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[5].txNSdu[3], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[5].txNSdu[4], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[6].txNSdu[0], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[6].txNSdu[1], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[7].txNSdu[0], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[7].txNSdu[1], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[7].txNSdu[2], .activation = CANTP_TX_WAIT},
+
     }};
 
 static inline void memzero(uint8_t *ptr, uint32_t size)
