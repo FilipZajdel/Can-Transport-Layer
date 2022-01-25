@@ -228,45 +228,57 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
     return result;
 }
 
+inline uint8 CanTp_DecodeFrameType(uint8 *sdu) { return (((sdu[0]) >> 4) & 0xF); }
+
+inline uint8 CanTp_GetAddrFieldLen(CanTp_AddressingFormatType af)
+{
+    uint8 extAddrFieldLen = 0;
+
+    switch (af) {
+        case CANTP_EXTENDED:
+        case CANTP_MIXED:
+        case CANTP_MIXED29BIT:
+            extAddrFieldLen = 1;
+            break;
+        case CANTP_STANDARD:
+        case CANTP_NORMALFIXED:
+            extAddrFieldLen = 0;
+            break;
+        default:
+            break;
+    }
+}
+
 void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
 {
     Std_ReturnType result = E_NOT_OK;
     CanTp_RxNSduType *nsdu = NULL;
     CanTp_RxConnection *connection = getRxConnection(RxPduId);
-    uint8 addrModeByteSkip = 0;
-    if (connection != NULL) {
-        return result;
+    uint8 sduDataBeginIndex = 0;
+    uint8 *sduData = NULL;
+
+    if (connection == NULL) {
+        return;
     }
 
     if (connection->activation == CANTP_RX_PROCESSING) {
-        return result;
+        return;
     }
 
     nsdu = connection->nsdu;
 
     if ((nsdu->paddingActivation == CANTP_ON) && (PduInfoPtr->SduLength < 8)) {
         Det_ReportRuntimeError(CANTP_MODULE_ID, 0, CANTP_RX_INDICATION_API_ID, CANTP_E_PADDING);
-        return result;
+        return;
     }
 
     connection->activation = CANTP_RX_PROCESSING;
 
-    switch (nsdu->addressingFormat) {
-        case CANTP_EXTENDED:
-        case CANTP_MIXED:
-        case CANTP_MIXED29BIT:
-            addrModeByteSkip = 1;
-            break;
-        case CANTP_STANDARD:
-        case CANTP_NORMALFIXED:
-            addrModeByteSkip = 0;
-            break;
-        default:
-            return result;
-            break;
-    }
+    sduDataBeginIndex = CanTp_GetAddrFieldLen(nsdu->addressingFormat);
 
-    switch (((PduInfoPtr->SduDataPtr[addrModeByteSkip]) >> 4) & 0xF) {
+    sduData = &(PduInfoPtr->SduDataPtr[sduDataBeginIndex]);
+
+    switch (CanTp_DecodeFrameType(sduData)) {
         case CANTP_N_PCI_TYPE_FF:
             break;
         case CANTP_N_PCI_TYPE_SF:
@@ -276,14 +288,14 @@ void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
         case CANTP_N_PCI_TYPE_FC:
             break;
         default:
-            return result;
+            return;
             break;
     }
 
     /* put somwhere to get buffer */
     // PduR_CanTpStartOfReception(RxPduId, PduInfoPtr,  );
 
-    return result;
+    return;
 }
 
 /**
