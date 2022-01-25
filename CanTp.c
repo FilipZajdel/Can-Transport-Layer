@@ -7,19 +7,30 @@
 
 #define CANTP_IS_ON() (CanTp_State.activation == CANTP_ON)
 #define PARAM_UNUSED(param) (void)param
-#define PDUID_VALID(pduid) (pduid < CONFIG_CAN_TP_MAX_CHANNELS_COUNT)
-
 #define ARR_SIZE(arr) sizeof(arr) / (sizeof(*arr))
-
-#define CANTP_N_PCI_TYPE_SF 0x00
-#define CANTP_N_PCI_TYPE_FF 0x01
-#define CANTP_N_PCI_TYPE_CF 0x02
-#define CANTP_N_PCI_TYPE_FC 0x03
 
 typedef enum
 {
+    CANTP_N_PCI_TYPE_SF = 0x00,
+    CANTP_N_PCI_TYPE_FF = 0x01,
+    CANTP_N_PCI_TYPE_CF = 0x02,
+    CANTP_N_PCI_TYPE_FC = 0x03,
+} CanTp_PciType;
+
+typedef enum
+{
+    /**
+     * No pending operations on a connection.
+     */
     CANTP_TX_STATE_FREE,
+    /**
+     * Getting the data from PduR and composing the frame for lower layer.
+     */
     CANTP_TX_STATE_SF_SEND_REQ,
+    /**
+     * Sending the data to CanIf.
+     */
+    CANTP_TX_STATE_SF_SEND_PROCESS,
     CANTP_TX_STATE_FF_SEND_REQ,
     CANTP_TX_STATE_CF_SEND_REQ,
     CANTP_TX_STATE_WAIT_FC,
@@ -60,6 +71,17 @@ typedef struct
 
 } CanTp_RxConnection;
 
+typedef struct
+{
+#if defined(CONFIG_CAN_2_0_OR_CAN_FD)
+    uint8 data[8];
+#elif defined(CONFIG_CAN_FD_ONLY)
+    uint8 data[64];
+#endif
+    uint8 payloadOffset;
+    uint8 payloadLength;
+} CanTp_ConnectionBuffer;
+
 /**
  * @brief Type for holding a TX connection info on a given RxNsdu
  */
@@ -69,12 +91,9 @@ typedef struct
     /** Points to nsdu in CanTp_Config.channels */
     CanTp_TxNSduType *nsdu;
     CanTp_TxConnectionState state;
+    PduInfoType pduInfo;
+    CanTp_ConnectionBuffer buf;
 
-    /**
-     * Fill it with other necessary variables
-     * .
-     * .
-     */
     struct
     {
         uint32 as;
@@ -82,6 +101,7 @@ typedef struct
         uint32 cs;
     } timer;
 
+    uint8 sequenceNumber;
 } CanTp_TxConnection;
 
 typedef struct
@@ -203,22 +223,37 @@ static CanTp_RxConnection *getRxConnection(PduIdType PduId)
     return rxConnection;
 }
 
+static inline uint8 CanTp_DecodeFrameType(uint8 *sdu) { return (((sdu[0]) >> 4) & 0xF); }
+
+static inline uint8 CanTp_GetAddrFieldLen(CanTp_AddressingFormatType af)
+{
+    uint8 extAddrFieldLen = 0;
+
+    switch (af) {
+        case CANTP_EXTENDED:
+        case CANTP_MIXED:
+        case CANTP_MIXED29BIT:
+            extAddrFieldLen = 1;
+            break;
+        case CANTP_STANDARD:
+        case CANTP_NORMALFIXED:
+            extAddrFieldLen = 0;
+            break;
+        default:
+            break;
+    }
+}
+
 static uint32 determineMaxTxNsduLength(CanTp_TxNSduType *nsdu)
 {
     uint32 maxLen = 0;
 
 #if defined(CONFIG_CAN_2_0_OR_CAN_FD)
-    if (nsdu) {
-        if ((nsdu->addressingFormat == CANTP_STANDARD) ||
-            (nsdu->addressingFormat == CANTP_NORMALFIXED)) {
-            maxLen = 7;
-        } else {
-            maxLen = 6;
-        }
+    maxLen = 8 - 1 - CanTp_GetAddrFieldLen(nsdu->addressingFormat);
 #elif defined(CONFIG_CAN_FD_ONLY)
-    // @TODO: Implement determineMaxTxNsduLength for CAN_FD
+    maxLen = 64 - 2 - CanTp_GetAddrFieldLen(nsdu->addressingFormat);
 #endif
-    }
+
     return maxLen;
 }
 
@@ -272,32 +307,12 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
      */
     if (PduInfoPtr->SduLength < maxNsduLength) {
         connection->state = CANTP_TX_STATE_SF_SEND_REQ;
+        connection->pduInfo.SduLength = PduInfoPtr->SduLength;
     } else {
         connection->state = CANTP_TX_STATE_FF_SEND_REQ;
     }
 
     return result;
-}
-
-static inline uint8 CanTp_DecodeFrameType(uint8 *sdu) { return (((sdu[0]) >> 4) & 0xF); }
-
-static inline uint8 CanTp_GetAddrFieldLen(CanTp_AddressingFormatType af)
-{
-    uint8 extAddrFieldLen = 0;
-
-    switch (af) {
-        case CANTP_EXTENDED:
-        case CANTP_MIXED:
-        case CANTP_MIXED29BIT:
-            extAddrFieldLen = 1;
-            break;
-        case CANTP_STANDARD:
-        case CANTP_NORMALFIXED:
-            extAddrFieldLen = 0;
-            break;
-        default:
-            break;
-    }
 }
 
 void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
@@ -350,14 +365,77 @@ void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
 }
 
 /**
+ * @brief Fills the connection's buffer header with data specific for a given pciType
+ * @note Only connection's buffer is modified.
+ */
+static inline CanTp_FillTpHeader(CanTp_TxConnection *conn, CanTp_PciType pciType)
+{
+    uint16 *header = NULL;
+    uint8 addressingInfoOffset = CanTp_GetAddrFieldLen(conn->nsdu->addressingFormat);
+    uint8 *buf = &conn->buf.data[addressingInfoOffset];
+
+    buf = ((uint8)pciType << 4);
+
+    // @TODO: Fill Addressing Info
+
+    switch (pciType) {
+        case CANTP_N_PCI_TYPE_SF:
+#if defined(CONFIG_CAN_2_0_OR_CAN_FD)
+            buf[0] &= (uint8)0xF0;
+            buf[0] |= (uint8)(conn->pduInfo.SduLength & 0x0F);
+            conn->buf.payloadOffset = 1;
+#elif defined(CONFIG_CAN_FD_ONLY)
+#error "Implement CanTp_FillTpHeader for CAN_FD"
+#endif
+            break;
+
+        case CANTP_N_PCI_TYPE_FF:
+#if defined(CONFIG_CAN_2_0_OR_CAN_FD)
+            buf[0] &= (uint8)0xF0;
+            header = (uint16 *)&buf[0];
+            *header |= ((uint16)conn->pduInfo.SduLength & (uint16)0x0FFF);
+            conn->buf.payloadOffset = 2;
+#elif defined(CONFIG_CAN_FD_ONLY)
+#error "Implement CanTp_FillTpHeader for CAN_FD"
+#endif
+            break;
+
+        case CANTP_N_PCI_TYPE_CF:
+#if defined(CONFIG_CAN_2_0_OR_CAN_FD)
+            buf[0] &= (uint8)0xF0;
+            buf[0] |= (uint8)(conn->sequenceNumber & 0x0F);
+            conn->buf.payloadOffset = 1;
+#elif defined(CONFIG_CAN_FD_ONLY)
+#error "Implement CanTp_FillTpHeader for CAN_FD"
+#endif
+        default:
+            break;
+    }
+}
+
+static CanTp_TxConnectionState CanTp_TxStateFsSendReq(CanTp_TxConnection *conn)
+{
+    CanTp_FillTpHeader(conn, CANTP_N_PCI_TYPE_SF);
+
+    // Lock the data within PduR
+    // PduR_CanTpCopyTxData()
+}
+
+/**
  * @brief Implements the TX state machine
  */
 static void CanTp_TxIteration(void)
 {
     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.txConnections); connItr++) {
         CanTp_TxConnection *conn = &CanTp_State.txConnections[connItr];
+        CanTp_TxConnectionState nextState = conn->state;
+
         switch (conn->state) {
             case CANTP_TX_STATE_SF_SEND_REQ:
+                // Get the data from PduR
+                nextState = CanTp_TxStateFsSendReq(conn);
+                break;
+            case CANTP_TX_STATE_SF_SEND_PROCESS:
 
                 break;
             case CANTP_TX_STATE_FF_SEND_REQ:
@@ -365,6 +443,8 @@ static void CanTp_TxIteration(void)
             default:
                 break;
         }
+
+        conn->state = nextState;
     }
 }
 
