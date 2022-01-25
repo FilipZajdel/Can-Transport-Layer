@@ -18,6 +18,94 @@
 
 typedef enum
 {
+    CANTP_TX_STATE_FREE,
+    CANTP_TX_STATE_SF_SEND_REQ,
+    CANTP_TX_STATE_FF_SEND_REQ,
+    CANTP_TX_STATE_CF_SEND_REQ,
+    CANTP_TX_STATE_WAIT_FC,
+    CANTP_TX_STATE_WAIT_CANIF_CONFIRM
+} CanTp_TxConnectionState;
+
+typedef enum
+{
+    CANTP_RX_STATE_FREE,
+    CANTP_RX_STATE_SF_RCV,
+    CANTP_RX_STATE_FF_RCV,
+    CANTP_RX_STATE_CF_SEND_REQ,
+    CANTP_RX_STATE_WAIT_FC,
+    CANTP_RX_STATE_WAIT_CANIF_CONFIRM
+} CanTp_RxConnectionState;
+
+/**
+ * @brief Type for holding a RX connection info on a given RxNsdu
+ */
+typedef struct
+{
+    CanTp_RxNSduState activation;
+    /** Points to nsdu in CanTp_Config.channels */
+    CanTp_RxNSduType *nsdu;
+    CanTp_RxConnectionState state;
+
+    /**
+     * Fill it with other necessary variables
+     * .
+     * .
+     */
+    struct
+    {
+        uint32 ar;
+        uint32 br;
+        uint32 cr;
+    } timer;
+
+} CanTp_RxConnection;
+
+/**
+ * @brief Type for holding a TX connection info on a given RxNsdu
+ */
+typedef struct
+{
+    CanTp_TxNSduState activation;
+    /** Points to nsdu in CanTp_Config.channels */
+    CanTp_TxNSduType *nsdu;
+    CanTp_TxConnectionState state;
+
+    /**
+     * Fill it with other necessary variables
+     * .
+     * .
+     */
+    struct
+    {
+        uint32 as;
+        uint32 bs;
+        uint32 cs;
+    } timer;
+
+} CanTp_TxConnection;
+
+typedef struct
+{
+    CanTp_PaddingActivationType activation;
+    uint32 currentTime;
+
+    /**
+     * @brief Any time a new nsdu is started to be received
+     * an entry corresponding to its id is modified
+     */
+    CanTp_RxConnection
+        rxConnections[CONFIG_CAN_TP_MAX_CHANNELS_COUNT * CONFIG_CANTP_MAX_RX_NSDU_PER_CHANNEL];
+
+    /**
+     * @brief Any time a new nsdu is started to be received
+     * an entry corresponding to its id is modified
+     */
+    CanTp_TxConnection
+        txConnections[CONFIG_CAN_TP_MAX_CHANNELS_COUNT * CONFIG_CANTP_MAX_TX_NSDU_PER_CHANNEL];
+} CanTp_State_t;
+
+typedef enum
+{
     CANTP_NSDU_DIRECTION_TX,
     CANTP_NSDU_DIRECTION_RX
 } CanTp_NSduDirection_t;
@@ -64,17 +152,19 @@ static CanTp_State_t CanTp_State = {
             {.nsdu = &config.channels[3].rxNSdu[2], .activation = CANTP_RX_WAIT},
 
         },
-    .txConnections = {
-        {.nsdu = &config.channels[0].txNSdu[0], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[1].txNSdu[0], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[1].txNSdu[1], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[1].txNSdu[2], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[1].txNSdu[3], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[1].txNSdu[4], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[2].txNSdu[0], .activation = CANTP_TX_WAIT},
-        {.nsdu = &config.channels[2].txNSdu[1], .activation = CANTP_TX_WAIT},
+    .txConnections =
+        {
+            {.nsdu = &config.channels[0].txNSdu[0], .activation = CANTP_TX_WAIT},
+            {.nsdu = &config.channels[1].txNSdu[0], .activation = CANTP_TX_WAIT},
+            {.nsdu = &config.channels[1].txNSdu[1], .activation = CANTP_TX_WAIT},
+            {.nsdu = &config.channels[1].txNSdu[2], .activation = CANTP_TX_WAIT},
+            {.nsdu = &config.channels[1].txNSdu[3], .activation = CANTP_TX_WAIT},
+            {.nsdu = &config.channels[1].txNSdu[4], .activation = CANTP_TX_WAIT},
+            {.nsdu = &config.channels[2].txNSdu[0], .activation = CANTP_TX_WAIT},
+            {.nsdu = &config.channels[2].txNSdu[1], .activation = CANTP_TX_WAIT},
 
-    }};
+        },
+};
 
 static inline void memzero(uint8_t *ptr, uint32_t size)
 {
@@ -292,12 +382,32 @@ static void CanTp_RxIteration(void)
     }
 }
 
+/**
+ * @brief Increments timers for each tx and rx connection
+ */
+static void CanTp_ConnectionsTimersInc(void)
+{
+    for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.txConnections); connItr++) {
+        CanTp_TxConnection *conn = &CanTp_State.txConnections[connItr];
+        conn->timer.as += CONFIG_CANTP_MAIN_FUNCTION_PERIOD;
+        conn->timer.bs += CONFIG_CANTP_MAIN_FUNCTION_PERIOD;
+        conn->timer.cs += CONFIG_CANTP_MAIN_FUNCTION_PERIOD;
+    }
+
+    for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections); connItr++) {
+        CanTp_RxConnection *conn = &CanTp_State.rxConnections[connItr];
+        conn->timer.ar += CONFIG_CANTP_MAIN_FUNCTION_PERIOD;
+        conn->timer.br += CONFIG_CANTP_MAIN_FUNCTION_PERIOD;
+        conn->timer.cr += CONFIG_CANTP_MAIN_FUNCTION_PERIOD;
+    }
+}
+
 void CanTp_MainFunction(void)
 {
     if (CANTP_IS_ON()) {
         CanTp_TxIteration();
         CanTp_RxIteration();
+        CanTp_ConnectionsTimersInc();
+        CanTp_State.currentTime += CONFIG_CANTP_MAIN_FUNCTION_PERIOD;
     }
-
-    CanTp_State.currentTime += CONFIG_CANTP_MAIN_FUNCTION_PERIOD;
 }
