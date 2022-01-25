@@ -1,7 +1,11 @@
-#include <CanTp.h>
-#include <fff.h>
+#define TEST_NO_MAIN
 
-FAKE_VALUE_FUNC(Std_ReturnType, CanIf_Transmit, PduIdType, const PduInfoType);
+#include <fff.h>
+#include <acutest.h>
+#include <Test_Stub.h>
+#include <CanTp.c>
+
+FAKE_VALUE_FUNC(Std_ReturnType, CanIf_Transmit, PduIdType, const PduInfoType *);
 
 void CanTp_Transmit_Test_SF_transmission(void)
 {
@@ -17,8 +21,7 @@ void CanTp_Transmit_Test_SF_transmission(void)
     TEST_MSG("CanIf_Transmit was called %u/%u times", CanIf_Transmit_fake.call_count, 1);
 }
 
-#define CanTp_Transmit_TEST_LIST                                                                   \
-    {                                                                                              \
-        "CanTp_Transmit SF transmission", CanTp_Transmit_Test_SF_transmission                      \
-    }
-// ,{ "next_test", next_test } // and so on
+TEST_LINKED_LIST_ENTRY CanTp_Transmit_TEST_LIST[] = {
+    { "CanTp_Transmit SF transmission", CanTp_Transmit_Test_SF_transmission},
+    { NULL, NULL}};
+

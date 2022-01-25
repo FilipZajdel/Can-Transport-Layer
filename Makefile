@@ -16,7 +16,18 @@ DEPS = \
     test/test_CanTp_TxConfirmation.c
 
 TESTS_SRCS = \
-	test/main.c
+	test/main.c \
+	test/test_CanTp_CancelReceive.c \
+    test/test_CanTp_CancelTransmit.c \
+    test/test_CanTp_ChangeParameter.c \
+    test/test_CanTp_GetVersionInfo.c \
+    test/test_CanTp_Init.c \
+    test/test_CanTp_MainFunction.c \
+    test/test_CanTp_ReadParameter.c \
+    test/test_CanTp_RxIndication.c \
+    test/test_CanTp_Shutdown.c \
+    test/test_CanTp_Transmit.c \
+    test/test_CanTp_TxConfirmation.c
 
 BUILD_DIR = bin
 

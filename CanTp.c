@@ -228,9 +228,9 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
     return result;
 }
 
-inline uint8 CanTp_DecodeFrameType(uint8 *sdu) { return (((sdu[0]) >> 4) & 0xF); }
+static inline uint8 CanTp_DecodeFrameType(uint8 *sdu) { return (((sdu[0]) >> 4) & 0xF); }
 
-inline uint8 CanTp_GetAddrFieldLen(CanTp_AddressingFormatType af)
+static inline uint8 CanTp_GetAddrFieldLen(CanTp_AddressingFormatType af)
 {
     uint8 extAddrFieldLen = 0;
 

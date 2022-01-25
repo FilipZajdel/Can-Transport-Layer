@@ -1,23 +1,26 @@
-#include <CanTp.c>
-
-#include <acutest.h>
 #include <fff.h>
-
-#include <test_CanTp_CancelReceive.c>
-#include <test_CanTp_CancelTransmit.c>
-#include <test_CanTp_ReadParameter.c>
-#include <test_CanTp_ChangeParameter.c>
-#include <test_CanTp_GetVersionInfo.c>
-#include <test_CanTp_Init.c>
-#include <test_CanTp_MainFunction.c>
-#include <test_CanTp_RxIndication.c>
-#include <test_CanTp_Shutdown.c>
-#include <test_CanTp_Transmit.c>
-#include <test_CanTp_TxConfirmation.c>
 
 DEFINE_FFF_GLOBALS;
 
-TEST_LIST = {
+#define ACUTEST_USE_LINKED_TEST_LIST
+#include <acutest.h>
+
+#include <Std_Types.h>
+FAKE_VALUE_FUNC4(Std_ReturnType, Det_ReportRuntimeError, uint16, uint8, uint8, uint8);
+
+extern TEST_LINKED_LIST_ENTRY CanTp_CancelReceive_TEST_LIST[];
+extern TEST_LINKED_LIST_ENTRY CanTp_CancelTransmit_TEST_LIST[];
+extern TEST_LINKED_LIST_ENTRY CanTp_ReadParameter_TEST_LIST[];
+extern TEST_LINKED_LIST_ENTRY CanTp_ChangeParameter_TEST_LIST[];
+extern TEST_LINKED_LIST_ENTRY CanTp_GetVersionInfo_TEST_LIST[];
+extern TEST_LINKED_LIST_ENTRY CanTp_Init_TEST_LIST[];
+extern TEST_LINKED_LIST_ENTRY CanTp_MainFunction_TEST_LIST[];
+extern TEST_LINKED_LIST_ENTRY CanTp_RxIndication_TEST_LIST[];
+extern TEST_LINKED_LIST_ENTRY CanTp_Shutdown_TEST_LIST[];
+extern TEST_LINKED_LIST_ENTRY CanTp_Transmit_TEST_LIST[];
+extern TEST_LINKED_LIST_ENTRY CanTp_TxConfirmation_TEST_LIST[];
+
+TEST_LINKED_LIST = {
     CanTp_CancelReceive_TEST_LIST,
     CanTp_CancelTransmit_TEST_LIST,
     CanTp_ReadParameter_TEST_LIST,
@@ -29,5 +32,5 @@ TEST_LIST = {
     CanTp_Shutdown_TEST_LIST,
     CanTp_Transmit_TEST_LIST,
     CanTp_TxConfirmation_TEST_LIST,
-    { NULL, NULL }
+    TEST_LINKED_LIST_END
 };

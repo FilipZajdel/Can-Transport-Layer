@@ -62,6 +62,14 @@
 #define TEST_LIST               const struct acutest_test_ acutest_list_[]
 
 
+/* Note: #define ACUTEST_USE_LINKED_TEST_LIST to use following api */
+/* Create a list of tests which particular modules can append to.
+ */
+#define TEST_LINKED_LIST        struct acutest_test_ *acutest_linked_list_[]
+#define TEST_LINKED_LIST_ENTRY  struct acutest_test_
+#define TEST_LINKED_LIST_END    NULL
+
+
 /* Macros for testing whether an unit test succeeds or fails. These macros
  * can be used arbitrarily in functions implementing the unit tests.
  *
@@ -364,7 +372,12 @@ enum {
     ACUTEST_FLAG_FAILURE_ = 1 << 2,
 };
 
+#ifndef ACUTEST_USE_LINKED_TEST_LIST
 extern const struct acutest_test_ acutest_list_[];
+#else
+extern struct acutest_test_ *acutest_linked_list_[];
+struct acutest_test_ *acutest_list_;
+#endif
 
 int acutest_check_(int cond, const char* file, int line, const char* fmt, ...);
 void acutest_case_(const char* fmt, ...);
@@ -410,6 +423,10 @@ static void
 acutest_cleanup_(void)
 {
     free((void*) acutest_test_data_);
+
+#ifdef ACUTEST_USE_LINKED_TEST_LIST
+    free(acutest_list_);
+#endif
 }
 
 static void ACUTEST_ATTRIBUTE_(noreturn)
@@ -1687,6 +1704,64 @@ main(int argc, char** argv)
  #endif
 #else
     acutest_colorize_ = 0;
+#endif
+
+#ifdef ACUTEST_USE_LINKED_TEST_LIST
+    /* Make acutest_list_ behave same way as it was statically defined.
+     * Every entry in acutest_linked_list_ points to a statically defined array
+     * of struct acutest_test_ .
+     * The size of each particular static tests array is determined and every entry
+     * is then copied to acutest_list_ to make it behave as defined statically.
+     */
+    int tests_number = 1; // At least one entry for {NULL, NULL}
+    for (i = 0; acutest_linked_list_[i] != TEST_LINKED_LIST_END; i++)
+    {
+        struct acutest_test_ *test_list = acutest_linked_list_[i];
+        int tests_cnt = 0;
+
+        if (acutest_linked_list_[i] == TEST_LINKED_LIST_END)
+        {
+            break;
+        }
+
+        for (tests_cnt = 0;; tests_cnt++)
+        {
+            if (test_list[tests_cnt].func == NULL)
+            {
+                break;
+            }
+        }
+
+        tests_number += tests_cnt;
+    }
+
+    acutest_list_ = malloc(tests_number * sizeof(struct acutest_test_));
+    if (acutest_list_ == NULL)
+    {
+        fprintf(stderr, "Out of memory.\n");
+        acutest_exit_(2);
+    }
+
+    int tests_itr = 0;
+    for (i = 0; acutest_linked_list_[i] != NULL; i++)
+    {
+        struct acutest_test_ *test_list = acutest_linked_list_[i];
+
+        for (int j = 0;; j++)
+        {
+            if (test_list[j].func == NULL)
+            {
+                break;
+            }
+
+            acutest_list_[tests_itr].func = test_list[j].func;
+            acutest_list_[tests_itr].name = test_list[j].name;
+            tests_itr++;
+        }
+    }
+
+    acutest_list_[tests_itr].func = NULL;
+    acutest_list_[tests_itr].name = NULL;
 #endif
 
     /* Count all test units */
