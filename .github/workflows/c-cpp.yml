@@ -23,7 +23,7 @@ jobs:
           # - CanTp_Main
           # - CanTp_RxInd
           # - CanTp_Shutdown
-          # - CanTp_Transmit
+          - CanTp_Transmit
           # - CanTp_TxConf
     steps:
     - uses: actions/checkout@v2

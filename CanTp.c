@@ -7,7 +7,10 @@
 
 #define CANTP_IS_ON() (CanTp_State.activation == CANTP_ON)
 #define PARAM_UNUSED(param) (void)param
-#define ARR_SIZE(arr) sizeof(arr) / (sizeof(*arr))
+#define ARR_SIZE(arr) (sizeof(arr) / (sizeof(*arr)))
+
+#define CAN_2_0_MAX_LEN (uint8)8U
+#define CAN_FD_MAX_LEN (uint8)64U
 
 #define CANTP_SF_PCI_SIZE 0x01
 #define CANTP_FF_PCI_SIZE 0x02
@@ -82,9 +85,9 @@ typedef struct
 typedef struct
 {
 #if defined(CONFIG_CAN_2_0_OR_CAN_FD)
-    uint8 data[8];
+    uint8 data[CAN_2_0_MAX_LEN];
 #elif defined(CONFIG_CAN_FD_ONLY)
-    uint8 data[64];
+    uint8 data[CAN_FD_MAX_LEN];
 #endif
     uint8 payloadOffset;
     uint8 payloadLength;
@@ -208,6 +211,11 @@ static CanTp_TxConnection *getTxConnection(PduIdType PduId)
 
     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.txConnections) && !txConnection;
          connItr++) {
+
+        if (!CanTp_State.txConnections[connItr].nsdu) {
+            continue;
+        }
+
         if (CanTp_State.txConnections[connItr].nsdu->id == PduId) {
             txConnection = &CanTp_State.txConnections[connItr];
         }
@@ -289,9 +297,11 @@ static uint32 determineMaxTxNsduLength(CanTp_TxNSduType *nsdu)
     uint32 maxLen = 0;
 
 #if defined(CONFIG_CAN_2_0_OR_CAN_FD)
-    maxLen = 8 - 1 - CanTp_GetAddrFieldLen(nsdu->addressingFormat);
+    maxLen = CAN_2_0_MAX_LEN - CANTP_SF_PCI_SIZE - CanTp_GetAddrFieldLen(nsdu->addressingFormat);
 #elif defined(CONFIG_CAN_FD_ONLY)
-    maxLen = 64 - 2 - CanTp_GetAddrFieldLen(nsdu->addressingFormat);
+    /* @TODO: Introduce a define for header lengths for CAN FD *
+    /* max frame len - shortest possible header - addressing info */
+    maxLen = CAN_FD_MAX_LEN - 2 - CanTp_GetAddrFieldLen(nsdu->addressingFormat);
 #endif
 
     return maxLen;
@@ -329,11 +339,23 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
     uint32 maxNsduLength = 0;
     CanTp_TxConnection *connection = getTxConnection(TxPduId);
 
-    if (connection != NULL) {
+    if (!CANTP_IS_ON()) {
+        return result;
+    }
+
+    if (connection == NULL) {
         return result;
     }
 
     if (connection->activation == CANTP_TX_PROCESSING) {
+        return result;
+    }
+
+    if (PduInfoPtr == NULL) {
+        return result;
+    }
+
+    if ((PduInfoPtr->SduLength > 0) && (PduInfoPtr->SduDataPtr == NULL)) {
         return result;
     }
 
@@ -347,10 +369,11 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
      */
     if (PduInfoPtr->SduLength < maxNsduLength) {
         connection->state = CANTP_TX_STATE_SF_SEND_REQ;
-        connection->pduInfo.SduLength = PduInfoPtr->SduLength;
     } else {
         connection->state = CANTP_TX_STATE_FF_SEND_REQ;
     }
+
+    connection->pduInfo.SduLength = PduInfoPtr->SduLength;
 
     return result;
 }
@@ -424,13 +447,13 @@ static CanTp_RxConnectionState CanTp_RxIndSF(CanTp_RxConnection *conn,
 static CanTp_RxConnectionState CanTp_RxIndFF(CanTp_RxConnection *conn,
                                              const PduInfoType *PduInfoPtr, uint8 nAeSize)
 {
-        return CANTP_RX_STATE_ABORT;
+    return CANTP_RX_STATE_ABORT;
 }
 
 static CanTp_RxConnectionState CanTp_RxIndCF(CanTp_RxConnection *conn,
                                              const PduInfoType *PduInfoPtr, uint8 nAeSize)
 {
-        return CANTP_RX_STATE_ABORT;
+    return CANTP_RX_STATE_ABORT;
 }
 
 static CanTp_RxConnectionState CanTp_RxIndFC(CanTp_TxConnection *conn,
@@ -497,13 +520,13 @@ void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
 /**
  * @note Only connection's buffer is modified.
  */
-static inline CanTp_FillTpHeader(CanTp_TxConnection *conn, CanTp_PciType pciType)
+static inline void CanTp_FillTpHeader(CanTp_TxConnection *conn, CanTp_PciType pciType)
 {
     uint16 *header = NULL;
     uint8 addressingInfoOffset = CanTp_GetAddrFieldLen(conn->nsdu->addressingFormat);
     uint8 *buf = &conn->buf.data[addressingInfoOffset];
 
-    buf = ((uint8)pciType << 4);
+    buf[0] = ((uint8)pciType << 4);
 
     // @TODO: Fill Addressing Info
 
@@ -542,12 +565,49 @@ static inline CanTp_FillTpHeader(CanTp_TxConnection *conn, CanTp_PciType pciType
     }
 }
 
-static CanTp_TxConnectionState CanTp_TxStateFsSendReq(CanTp_TxConnection *conn)
+static CanTp_TxConnectionState CanTp_TxStateSFSendReq(CanTp_TxConnection *conn)
 {
+    PduInfoType pduInfo;
+    PduLengthType remainingLength;
+    BufReq_ReturnType copyTxRet;
+    CanTp_TxConnectionState nextState;
+
     CanTp_FillTpHeader(conn, CANTP_N_PCI_TYPE_SF);
 
+    pduInfo.MetaDataPtr = NULL;
+    pduInfo.SduDataPtr = &conn->buf.data[conn->buf.payloadOffset];
+    pduInfo.SduLength = conn->pduInfo.SduLength;
+
     // Lock the data within PduR
-    // PduR_CanTpCopyTxData()
+    copyTxRet = PduR_CanTpCopyTxData(conn->nsdu->id, &pduInfo, NULL, &remainingLength);
+
+    if (copyTxRet == BUFREQ_OK) {
+        conn->buf.payloadLength = conn->pduInfo.SduLength + conn->buf.payloadOffset;
+        nextState = CANTP_TX_STATE_SF_SEND_PROCESS;
+    } else {
+        nextState = CANTP_TX_STATE_SF_SEND_REQ;
+    }
+
+    return nextState;
+}
+
+static CanTp_TxConnectionState CanTp_TxStateSFProcess(CanTp_TxConnection *conn)
+{
+    CanTp_TxConnectionState nextState;
+    Std_ReturnType transmitResult;
+    const PduInfoType pduInfo = {
+        .MetaDataPtr = NULL, .SduDataPtr = conn->buf.data, .SduLength = conn->buf.payloadLength};
+
+    transmitResult = CanIf_Transmit(conn->nsdu->id, &pduInfo);
+    if (transmitResult == E_OK) {
+        // Inform higher layer about successful transmission
+        PduR_CanTpTxConfirmation(conn->nsdu->id, E_OK);
+        nextState = CANTP_TX_STATE_FREE;
+    } else {
+        nextState = CANTP_TX_STATE_SF_SEND_PROCESS;
+    }
+
+    return nextState;
 }
 
 /**
@@ -561,11 +621,10 @@ static void CanTp_TxIteration(void)
 
         switch (conn->state) {
             case CANTP_TX_STATE_SF_SEND_REQ:
-                // Get the data from PduR
-                nextState = CanTp_TxStateFsSendReq(conn);
+                nextState = CanTp_TxStateSFSendReq(conn);
                 break;
             case CANTP_TX_STATE_SF_SEND_PROCESS:
-
+                nextState = CanTp_TxStateSFProcess(conn);
                 break;
             case CANTP_TX_STATE_FF_SEND_REQ:
                 break;
