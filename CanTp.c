@@ -40,11 +40,11 @@ typedef enum
 typedef enum
 {
     CANTP_RX_STATE_FREE,
-    CANTP_RX_STATE_SF_RCV,
-    CANTP_RX_STATE_FF_RCV,
-    CANTP_RX_STATE_CF_SEND_REQ,
-    CANTP_RX_STATE_WAIT_FC,
-    CANTP_RX_STATE_WAIT_CANIF_CONFIRM
+    CANTP_RX_STATE_WAIT_CF,
+    CANTP_RX_STATE_FC_TX_OK,
+    CANTP_RX_STATE_FC_TX_OVF,
+    CANTP_RX_STATE_PROCESSED,
+    CANTP_RX_STATE_CANCEL
 } CanTp_RxConnectionState;
 
 /**
@@ -223,9 +223,12 @@ static CanTp_RxConnection *getRxConnection(PduIdType PduId)
     return rxConnection;
 }
 
-static inline uint8 CanTp_DecodeFrameType(uint8 *sdu) { return (((sdu[0]) >> 4) & 0xF); }
+static inline CanTp_PciType CanTp_DecodeFrameType(const uint8 *sdu)
+{
+    return (((sdu[0]) >> 4) & 0xF);
+}
 
-static inline uint8 CanTp_GetAddrFieldLen(CanTp_AddressingFormatType af)
+static inline uint8 CanTp_GetAddrFieldLen(const CanTp_AddressingFormatType af)
 {
     uint8 extAddrFieldLen = 0;
 
@@ -241,6 +244,33 @@ static inline uint8 CanTp_GetAddrFieldLen(CanTp_AddressingFormatType af)
             break;
         default:
             break;
+    }
+}
+
+static inline PduLengthType CanTp_DecodeFrameDL(const uint8 frameType,
+                                                const CanTp_PaddingActivationType padding,
+                                                const uint8 *sdu)
+{
+    PduLengthType dl = 0;
+
+    if (frameType == CANTP_N_PCI_TYPE_SF) {
+
+        dl = sdu[0] & 0x0F;
+#if defined(CONFIG_CAN_FD_ONLY)
+        if (dl == 0) {
+            dl = sdu[1];
+        }
+#endif
+
+    } else if (frameType == CANTP_N_PCI_TYPE_FF) {
+        dl = ((PduLengthType)(sdu[0] & 0x0f) << 8) || (PduLengthType)(sdu[1]);
+
+        if (dl == 0) {
+            dl = ((PduLengthType)(sdu[2]) << 24) || ((PduLengthType)(sdu[3]) << 16) ||
+                 ((PduLengthType)(sdu[4]) << 8) || (PduLengthType)(sdu[5]);
+        }
+    } else {
+        /* CF & FC doesn't have DL */
     }
 }
 
@@ -315,47 +345,83 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
     return result;
 }
 
+static CanTp_RxConnectionState CanTp_RxIndSF(CanTp_RxConnection *rxConnection,
+                                             const PduInfoType *PduInfoPtr, uint8 nAeSize)
+{
+}
+
+static CanTp_RxConnectionState CanTp_RxIndFF(CanTp_RxConnection *rxConnection,
+                                             const PduInfoType *PduInfoPtr, uint8 nAeSize)
+{
+}
+
+static CanTp_RxConnectionState CanTp_RxIndCF(CanTp_RxConnection *rxConnection,
+                                             const PduInfoType *PduInfoPtr, uint8 nAeSize)
+{
+}
+
+static CanTp_RxConnectionState CanTp_RxIndFC(CanTp_TxConnection *txConnection,
+                                             const PduInfoType *PduInfoPtr, uint8 nAeSize)
+{
+}
+
 void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
 {
-    Std_ReturnType result = E_NOT_OK;
-    CanTp_RxNSduType *nsdu = NULL;
-    CanTp_RxConnection *connection = getRxConnection(RxPduId);
-    uint8 sduDataBeginIndex = 0;
-    uint8 *sduData = NULL;
+    CanTp_TxConnection *txConnection = NULL;
+    CanTp_RxConnection *rxConnection = getRxConnection(RxPduId);
+    uint8 nAeSize = 0;
+    CanTp_NSduDirection_t nsduDir = CANTP_NSDU_DIRECTION_RX;
+    CanTp_TxConnectionState nextState = CANTP_RX_STATE_FREE;
 
-    if (connection == NULL) {
-        return;
-    }
-
-    if (connection->activation == CANTP_RX_PROCESSING) {
-        return;
-    }
-
-    nsdu = connection->nsdu;
-
-    if ((nsdu->paddingActivation == CANTP_ON) && (PduInfoPtr->SduLength < 8)) {
-        Det_ReportRuntimeError(CANTP_MODULE_ID, 0, CANTP_RX_INDICATION_API_ID, CANTP_E_PADDING);
-        return;
-    }
-
-    connection->activation = CANTP_RX_PROCESSING;
-
-    sduDataBeginIndex = CanTp_GetAddrFieldLen(nsdu->addressingFormat);
-
-    sduData = &(PduInfoPtr->SduDataPtr[sduDataBeginIndex]);
-
-    switch (CanTp_DecodeFrameType(sduData)) {
-        case CANTP_N_PCI_TYPE_FF:
-            break;
-        case CANTP_N_PCI_TYPE_SF:
-            break;
-        case CANTP_N_PCI_TYPE_CF:
-            break;
-        case CANTP_N_PCI_TYPE_FC:
-            break;
-        default:
+    if (rxConnection == NULL) {
+        txConnection = getTxConnection(RxPduId);
+        if (txConnection == NULL) {
             return;
-            break;
+        }
+        nsduDir = CANTP_NSDU_DIRECTION_TX;
+    }
+
+    if (nsduDir == CANTP_NSDU_DIRECTION_RX) {
+        if (rxConnection->activation == CANTP_RX_PROCESSING) {
+            return;
+        }
+
+        if ((rxConnection->nsdu->paddingActivation == CANTP_ON) && (PduInfoPtr->SduLength < 8)) {
+            Det_ReportRuntimeError(CANTP_MODULE_ID, 0, CANTP_RX_INDICATION_API_ID, CANTP_E_PADDING);
+            return;
+        }
+        rxConnection->activation = CANTP_RX_PROCESSING;
+
+        nAeSize = CanTp_GetAddrFieldLen(rxConnection->nsdu->addressingFormat);
+
+        switch (CanTp_DecodeFrameType(&(PduInfoPtr->SduDataPtr[nAeSize]))) {
+            case CANTP_N_PCI_TYPE_SF:
+                nextState = CanTp_RxIndSF(rxConnection, PduInfoPtr, nAeSize);
+                break;
+            case CANTP_N_PCI_TYPE_FF:
+                nextState = CanTp_RxIndFF(rxConnection, PduInfoPtr, nAeSize);
+                break;
+            case CANTP_N_PCI_TYPE_CF:
+                nextState = CanTp_RxIndCF(rxConnection, PduInfoPtr, nAeSize);
+                break;
+            case CANTP_N_PCI_TYPE_FC:
+            default:
+                return;
+                break;
+        }
+
+    } else if (nsduDir == CANTP_NSDU_DIRECTION_TX) {
+        if (txConnection->activation != CANTP_TX_STATE_WAIT_FC) {
+            return;
+        }
+        nAeSize = CanTp_GetAddrFieldLen(rxConnection->nsdu->addressingFormat);
+
+        if (CanTp_DecodeFrameType(&(PduInfoPtr->SduDataPtr[nAeSize])) == CANTP_N_PCI_TYPE_FC) {
+            nextState = CanTp_RxIndFC(txConnection, PduInfoPtr, nAeSize);
+        } else {
+            return;
+        }
+        txConnection->state = nextState;
     }
 
     /* put somwhere to get buffer */
@@ -456,7 +522,17 @@ static void CanTp_RxIteration(void)
     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections); connItr++) {
         CanTp_RxConnection *conn = &CanTp_State.rxConnections[connItr];
         switch (conn->state) {
-            default:
+            case CANTP_RX_STATE_FREE:
+                break;
+            case CANTP_RX_STATE_WAIT_CF:
+                break;
+            case CANTP_RX_STATE_FC_TX_OK:
+                break;
+            case CANTP_RX_STATE_FC_TX_OVF:
+                break;
+            case CANTP_RX_STATE_PROCESSED:
+                break;
+            case CANTP_RX_STATE_CANCEL:
                 break;
         }
     }
