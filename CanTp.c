@@ -48,7 +48,8 @@ typedef enum
     CANTP_RX_STATE_FC_TX_OK,
     CANTP_RX_STATE_FC_TX_OVF,
     CANTP_RX_STATE_PROCESSED,
-    CANTP_RX_STATE_CANCEL
+    CANTP_RX_STATE_ABORT,
+    CANTP_RX_STATE_INVALID
 } CanTp_RxConnectionState;
 
 /**
@@ -72,6 +73,9 @@ typedef struct
         uint32 br;
         uint32 cr;
     } timer;
+    PduInfoType pduInfo;
+    PduLengthType buffSize;
+    PduLengthType aquiredBuffSize;
 
 } CanTp_RxConnection;
 
@@ -351,64 +355,122 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
     return result;
 }
 
-static CanTp_RxConnectionState CanTp_RxIndSF(CanTp_RxConnection *rxConnection,
-                                             const PduInfoType *PduInfoPtr, uint8 nAeSize)
+static BufReq_ReturnType CanTp_CopyRxData(CanTp_RxConnection *rxConn)
 {
+    BufReq_ReturnType result;
+
+    result = PduR_CanTpCopyRxData(rxConn->nsdu->id, &rxConn->pduInfo, &rxConn->aquiredBuffSize);
+
+    if (result == BUFREQ_OK) {
+        rxConn->buffSize -= rxConn->pduInfo.SduLength;
+    }
+
+    return result;
 }
 
-static CanTp_RxConnectionState CanTp_RxIndFF(CanTp_RxConnection *rxConnection,
+static CanTp_RxConnectionState CanTp_RxIndSF(CanTp_RxConnection *conn,
                                              const PduInfoType *PduInfoPtr, uint8 nAeSize)
 {
+    uint8 headerSize;
+    BufReq_ReturnType status;
+    CanTp_RxConnectionState result = CANTP_RX_STATE_INVALID;
+
+    /* if reception is in progres report it and start new reception */
+    if (conn->activation == CANTP_RX_PROCESSING) {
+        PduR_CanTpRxIndication(conn->nsdu->id, E_NOT_OK);
+    } else {
+        conn->activation = CANTP_RX_PROCESSING;
+    }
+
+    headerSize = CANTP_SF_PCI_SIZE + nAeSize;
+    conn->buffSize = CanTp_DecodeFrameDL(CANTP_N_PCI_TYPE_SF, conn->nsdu->paddingActivation,
+                                         &(PduInfoPtr->SduDataPtr[nAeSize]));
+
+    conn->pduInfo.SduDataPtr = &(PduInfoPtr->SduDataPtr[headerSize]);
+    conn->pduInfo.MetaDataPtr = NULL;
+    conn->pduInfo.SduLength = conn->buffSize;
+
+    status = PduR_CanTpStartOfReception(conn->nsdu->id, &conn->pduInfo, conn->buffSize,
+                                        &conn->aquiredBuffSize);
+    switch (status) {
+        case BUFREQ_OK:
+            if ((conn->aquiredBuffSize >= conn->buffSize) &&
+                (CanTp_CopyRxData(conn) == BUFREQ_OK)) {
+                PduR_CanTpRxIndication(conn->nsdu->id, E_OK);
+                result = CANTP_RX_STATE_PROCESSED;
+            } else {
+                PduR_CanTpRxIndication(conn->nsdu->id, E_NOT_OK);
+                result = CANTP_RX_STATE_ABORT;
+            }
+            break;
+
+        case BUFREQ_E_OVFL:
+        case BUFREQ_E_NOT_OK:
+            PduR_CanTpRxIndication(conn->nsdu->id, E_NOT_OK);
+            result = CANTP_RX_STATE_ABORT;
+            break;
+
+        case BUFREQ_E_BUSY:
+            PduR_CanTpRxIndication(conn->nsdu->id, E_NOT_OK);
+            result = CANTP_RX_STATE_ABORT;
+            /* #TODO handle properly this case */
+            break;
+        default:
+            break;
+    }
+    return result;
 }
 
-static CanTp_RxConnectionState CanTp_RxIndCF(CanTp_RxConnection *rxConnection,
+static CanTp_RxConnectionState CanTp_RxIndFF(CanTp_RxConnection *conn,
                                              const PduInfoType *PduInfoPtr, uint8 nAeSize)
 {
+        return CANTP_RX_STATE_ABORT;
 }
 
-static CanTp_RxConnectionState CanTp_RxIndFC(CanTp_TxConnection *txConnection,
+static CanTp_RxConnectionState CanTp_RxIndCF(CanTp_RxConnection *conn,
+                                             const PduInfoType *PduInfoPtr, uint8 nAeSize)
+{
+        return CANTP_RX_STATE_ABORT;
+}
+
+static CanTp_RxConnectionState CanTp_RxIndFC(CanTp_TxConnection *conn,
                                              const PduInfoType *PduInfoPtr, uint8 nAeSize)
 {
 }
 
 void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
 {
-    CanTp_TxConnection *txConnection = NULL;
-    CanTp_RxConnection *rxConnection = getRxConnection(RxPduId);
+    CanTp_TxConnection *txConn = NULL;
+    CanTp_RxConnection *rxConn = getRxConnection(RxPduId);
     uint8 nAeSize = 0;
     CanTp_NSduDirection_t nsduDir = CANTP_NSDU_DIRECTION_RX;
     CanTp_TxConnectionState nextState = CANTP_RX_STATE_FREE;
 
-    if (rxConnection == NULL) {
-        txConnection = getTxConnection(RxPduId);
-        if (txConnection == NULL) {
+    if (rxConn == NULL) {
+        txConn = getTxConnection(RxPduId);
+        if (txConn == NULL) {
             return;
         }
         nsduDir = CANTP_NSDU_DIRECTION_TX;
     }
 
     if (nsduDir == CANTP_NSDU_DIRECTION_RX) {
-        if (rxConnection->activation == CANTP_RX_PROCESSING) {
-            return;
-        }
 
-        if ((rxConnection->nsdu->paddingActivation == CANTP_ON) && (PduInfoPtr->SduLength < 8)) {
+        if ((rxConn->nsdu->paddingActivation == CANTP_ON) && (PduInfoPtr->SduLength < 8)) {
             Det_ReportRuntimeError(CANTP_MODULE_ID, 0, CANTP_RX_INDICATION_API_ID, CANTP_E_PADDING);
             return;
         }
-        rxConnection->activation = CANTP_RX_PROCESSING;
-
-        nAeSize = CanTp_GetAddrFieldLen(rxConnection->nsdu->addressingFormat);
+        nAeSize = CanTp_GetAddrFieldLen(rxConn->nsdu->addressingFormat);
 
         switch (CanTp_DecodeFrameType(&(PduInfoPtr->SduDataPtr[nAeSize]))) {
             case CANTP_N_PCI_TYPE_SF:
-                nextState = CanTp_RxIndSF(rxConnection, PduInfoPtr, nAeSize);
+                nextState = CanTp_RxIndSF(rxConn, PduInfoPtr, nAeSize);
                 break;
             case CANTP_N_PCI_TYPE_FF:
-                nextState = CanTp_RxIndFF(rxConnection, PduInfoPtr, nAeSize);
+                nextState = CanTp_RxIndFF(rxConn, PduInfoPtr, nAeSize);
                 break;
             case CANTP_N_PCI_TYPE_CF:
-                nextState = CanTp_RxIndCF(rxConnection, PduInfoPtr, nAeSize);
+                nextState = CanTp_RxIndCF(rxConn, PduInfoPtr, nAeSize);
                 break;
             case CANTP_N_PCI_TYPE_FC:
             default:
@@ -417,27 +479,25 @@ void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
         }
 
     } else if (nsduDir == CANTP_NSDU_DIRECTION_TX) {
-        if (txConnection->activation != CANTP_TX_STATE_WAIT_FC) {
+        if (txConn->activation != CANTP_TX_STATE_WAIT_FC) {
             return;
         }
-        nAeSize = CanTp_GetAddrFieldLen(rxConnection->nsdu->addressingFormat);
+        nAeSize = CanTp_GetAddrFieldLen(rxConn->nsdu->addressingFormat);
 
         if (CanTp_DecodeFrameType(&(PduInfoPtr->SduDataPtr[nAeSize])) == CANTP_N_PCI_TYPE_FC) {
-            nextState = CanTp_RxIndFC(txConnection, PduInfoPtr, nAeSize);
+            nextState = CanTp_RxIndFC(txConn, PduInfoPtr, nAeSize);
         } else {
             return;
         }
-        txConnection->state = nextState;
+        txConn->state = nextState;
     }
-
-    /* put somwhere to get buffer */
-    // PduR_CanTpStartOfReception(RxPduId, PduInfoPtr,  );
-
     return;
 }
 
 /**
- * @brief Fills the connection's buffer header with data specific for a given pciType
+ * @brief 
+ * 
+ */
  * @note Only connection's buffer is modified.
  */
 static inline CanTp_FillTpHeader(CanTp_TxConnection *conn, CanTp_PciType pciType)
@@ -525,8 +585,10 @@ static void CanTp_TxIteration(void)
  */
 static void CanTp_RxIteration(void)
 {
+    CanTp_RxConnectionState nextState;
     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections); connItr++) {
         CanTp_RxConnection *conn = &CanTp_State.rxConnections[connItr];
+        nextState = conn->state;
         switch (conn->state) {
             case CANTP_RX_STATE_FREE:
                 break;
@@ -537,10 +599,11 @@ static void CanTp_RxIteration(void)
             case CANTP_RX_STATE_FC_TX_OVF:
                 break;
             case CANTP_RX_STATE_PROCESSED:
-                break;
-            case CANTP_RX_STATE_CANCEL:
+            case CANTP_RX_STATE_ABORT:
+                nextState = CANTP_RX_STATE_FREE;
                 break;
         }
+        conn->state = nextState;
     }
 }
 

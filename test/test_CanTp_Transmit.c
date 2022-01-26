@@ -6,6 +6,11 @@
 #include <CanTp.c>
 
 FAKE_VALUE_FUNC(Std_ReturnType, CanIf_Transmit, PduIdType, const PduInfoType *);
+FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpCopyRxData, PduIdType, const PduInfoType *,
+                PduLengthType *);
+FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpStartOfReception, PduIdType, const PduInfoType *,
+                PduLengthType, PduLengthType *);
+FAKE_VOID_FUNC(PduR_CanTpRxIndication, PduIdType, Std_ReturnType);
 
 void CanTp_Transmit_Test_SF_transmission(void)
 {
@@ -22,6 +27,4 @@ void CanTp_Transmit_Test_SF_transmission(void)
 }
 
 TEST_LINKED_LIST_ENTRY CanTp_Transmit_TEST_LIST[] = {
-    { "CanTp_Transmit SF transmission", CanTp_Transmit_Test_SF_transmission},
-    { NULL, NULL}};
-
+    {"CanTp_Transmit SF transmission", CanTp_Transmit_Test_SF_transmission}, {NULL, NULL}};
