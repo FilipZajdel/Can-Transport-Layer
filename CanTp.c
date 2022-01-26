@@ -495,9 +495,6 @@ void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
 }
 
 /**
- * @brief 
- * 
- */
  * @note Only connection's buffer is modified.
  */
 static inline CanTp_FillTpHeader(CanTp_TxConnection *conn, CanTp_PciType pciType)

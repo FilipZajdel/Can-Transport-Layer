@@ -3,14 +3,15 @@
 #include <fff.h>
 #include <acutest.h>
 #include <Test_Stub.h>
-#include <CanTp.c>
 
-FAKE_VALUE_FUNC(Std_ReturnType, CanIf_Transmit, PduIdType, const PduInfoType *);
-FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpCopyRxData, PduIdType, const PduInfoType *,
-                PduLengthType *);
-FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpStartOfReception, PduIdType, const PduInfoType *,
-                PduLengthType, PduLengthType *);
-FAKE_VOID_FUNC(PduR_CanTpRxIndication, PduIdType, Std_ReturnType);
+/** Place fake functions before including CanTp.c to avoid
+ * 'warning: ‘Det_ReportRuntimeError’ used but never defined'
+ */
+
+FAKE_STATIC_VALUE_FUNC2(Std_ReturnType, CanIf_Transmit, PduIdType, const PduInfoType *);
+
+
+#include <CanTp.c>
 
 void CanTp_Transmit_Test_SF_transmission(void)
 {

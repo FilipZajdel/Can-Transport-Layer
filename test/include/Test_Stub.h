@@ -1,5 +1,9 @@
+#ifndef TEST_STUB_H
+#define TEST_STUB_H
+
 #define DET_H    /** Guard against including the real Det.h */
 #define CAN_TP_H /** Guard against including the real CanTp.h */
+#define CAN_IF_H /** Guard against including the real CanIf.h */
 
 #include "CanTp_Types.h"
 #include "ComStack_Types.h"
@@ -42,5 +46,18 @@ static Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType paramete
 static void CanTp_MainFunction(void);
 static void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr);
 static void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result);
+
+static Std_ReturnType CanIf_Transmit(PduIdType txPduId, const PduInfoType *pPduInfo);
 static Std_ReturnType Det_ReportRuntimeError(uint16 moduleId, uint8 instanceId, uint8 apiId,
                                              uint8 errorId);
+static BufReq_ReturnType PduR_CanTpCopyRxData(PduIdType rxPduId, const PduInfoType *pPduInfo,
+                                       PduLengthType *pBuffer);
+static BufReq_ReturnType PduR_CanTpCopyTxData(PduIdType txPduId, const PduInfoType *pPduInfo,
+                                       const RetryInfoType *pRetryInfo,
+                                       PduLengthType *pAvailableData);
+static void PduR_CanTpRxIndication(PduIdType rxPduId, Std_ReturnType result);
+static BufReq_ReturnType PduR_CanTpStartOfReception(PduIdType pduId, const PduInfoType *pPduInfo,
+                                             PduLengthType tpSduLength, PduLengthType *pBufferSize);
+static void PduR_CanTpTxConfirmation(PduIdType txPduId, Std_ReturnType result);
+
+#endif /* TEST_STUB_H */
