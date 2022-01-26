@@ -249,9 +249,10 @@ static inline uint8 CanTp_GetAddrFieldLen(const CanTp_AddressingFormatType af)
         default:
             break;
     }
+    return extAddrFieldLen;
 }
 
-static inline PduLengthType CanTp_DecodeFrameDL(const uint8 frameType,
+static inline PduLengthType CanTp_DecodeFrameDL(const CanTp_PciType frameType,
                                                 const CanTp_PaddingActivationType padding,
                                                 const uint8 *sdu)
 {
@@ -276,6 +277,7 @@ static inline PduLengthType CanTp_DecodeFrameDL(const uint8 frameType,
     } else {
         /* CF & FC doesn't have DL */
     }
+    return dl;
 }
 
 static uint32 determineMaxTxNsduLength(CanTp_TxNSduType *nsdu)
