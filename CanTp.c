@@ -27,7 +27,7 @@ typedef enum
 {
     CANTP_FS_TYPE_CTS = 0x00,
     CANTP_FS_TYPE_WT = 0x01,
-    CANTP_FS_TYPE_OVW = 0x02
+    CANTP_FS_TYPE_OVF = 0x02
 } CanTp_FsType;
 typedef enum
 {
@@ -53,8 +53,7 @@ typedef enum
 {
     CANTP_RX_STATE_FREE,
     CANTP_RX_STATE_WAIT_CF,
-    CANTP_RX_STATE_FC_TX_OK,
-    CANTP_RX_STATE_FC_TX_OVF,
+    CANTP_RX_STATE_FC_TX_REQ,
     CANTP_RX_STATE_PROCESSED,
     CANTP_RX_STATE_ABORT,
     CANTP_RX_STATE_INVALID
@@ -385,6 +384,24 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
     return result;
 }
 
+static PduLengthType CanTp_GetRxBS(const CanTp_RxConnection *conn)
+{
+    PduLengthType result;
+    const PduLengthType payloadSize =
+        CANTP_CAN_FRAME_SIZE -
+        (CANTP_N_PCI_TYPE_CF + CanTp_GetAddrFieldLen(conn->nsdu->addressingFormat));
+    const PduLengthType fullBs = conn->nsdu->bs * payloadSize;
+    const PduLengthType lastBs = conn->buffSize;
+
+    if ((lastBs < fullBs) || (fullBs == 0x00u)) {
+        result = lastBs;
+    } else {
+        result = fullBs;
+    }
+
+    return result;
+}
+
 static BufReq_ReturnType CanTp_CopyRxData(CanTp_RxConnection *rxConn)
 {
     BufReq_ReturnType result;
@@ -396,6 +413,15 @@ static BufReq_ReturnType CanTp_CopyRxData(CanTp_RxConnection *rxConn)
     }
 
     return result;
+}
+
+Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
+{
+    CanTp_RxConnection *conn = getRxConnection(RxPduId);
+    if (conn != NULL) {
+        conn->state = CANTP_RX_STATE_ABORT;
+        PduR_CanTpRxIndication(conn->nsdu->id, E_NOT_OK);
+    }
 }
 
 static CanTp_RxConnectionState CanTp_RxIndSF(CanTp_RxConnection *conn,
@@ -454,7 +480,63 @@ static CanTp_RxConnectionState CanTp_RxIndSF(CanTp_RxConnection *conn,
 static CanTp_RxConnectionState CanTp_RxIndFF(CanTp_RxConnection *conn,
                                              const PduInfoType *PduInfoPtr, uint8 nAeSize)
 {
-    return CANTP_RX_STATE_ABORT;
+    uint8 headerSize;
+    uint8 payloadSize;
+    BufReq_ReturnType status;
+    CanTp_RxConnectionState result = CANTP_RX_STATE_INVALID;
+
+    /* if reception is in progres report it and start new reception */
+    if (conn->activation == CANTP_RX_PROCESSING) {
+        PduR_CanTpRxIndication(conn->nsdu->id, E_NOT_OK);
+    } else {
+        conn->activation = CANTP_RX_PROCESSING;
+    }
+
+    headerSize = CANTP_FF_PCI_SIZE + nAeSize;
+    payloadSize = CANTP_CAN_FRAME_SIZE - headerSize;
+
+    conn->buffSize = CanTp_DecodeFrameDL(CANTP_N_PCI_TYPE_FF, conn->nsdu->paddingActivation,
+                                         &(PduInfoPtr->SduDataPtr[nAeSize]));
+    conn->sn = 0;
+    conn->pduInfo.SduDataPtr = &(PduInfoPtr->SduDataPtr[headerSize]);
+    conn->pduInfo.MetaDataPtr = NULL;
+    conn->pduInfo.SduLength = PduInfoPtr->SduLength - headerSize;
+
+    status = PduR_CanTpStartOfReception(conn->nsdu->id, &conn->pduInfo, conn->buffSize,
+                                        &conn->aquiredBuffSize);
+    switch (status) {
+        case BUFREQ_OK:
+            if (conn->aquiredBuffSize < conn->buffSize) {
+                PduR_CanTpRxIndication(conn->nsdu->id, E_NOT_OK);
+                result = CANTP_RX_STATE_ABORT;
+            } else {
+                result = CANTP_RX_STATE_FC_TX_REQ;
+
+                if (conn->aquiredBuffSize < CanTp_GetRxBS(conn)) {
+                    conn->timer.br = 0;
+                    conn->fs = CANTP_FS_TYPE_WT;
+                } else {
+                    conn->fs = CANTP_FS_TYPE_CTS;
+                }
+            }
+
+            if ((CanTp_CopyRxData(conn) != BUFREQ_OK)) {
+                PduR_CanTpRxIndication(conn->nsdu->id, E_NOT_OK);
+                result = CANTP_RX_STATE_ABORT;
+            } else {
+            }
+            break;
+        case BUFREQ_E_OVFL:
+            result = CANTP_RX_STATE_FC_TX_REQ;
+            conn->fs = CANTP_FS_TYPE_OVF;
+        case BUFREQ_E_NOT_OK:
+        case BUFREQ_E_BUSY:
+            result = CANTP_RX_STATE_ABORT;
+            break;
+        default:
+            break;
+    }
+    return result;
 }
 
 static CanTp_RxConnectionState CanTp_RxIndCF(CanTp_RxConnection *conn,
@@ -657,9 +739,8 @@ static void CanTp_RxIteration(void)
                 break;
             case CANTP_RX_STATE_WAIT_CF:
                 break;
-            case CANTP_RX_STATE_FC_TX_OK:
-                break;
-            case CANTP_RX_STATE_FC_TX_OVF:
+            case CANTP_RX_STATE_FC_TX_REQ:
+                /*TODO send back FC*/
                 break;
             case CANTP_RX_STATE_PROCESSED:
             case CANTP_RX_STATE_ABORT:

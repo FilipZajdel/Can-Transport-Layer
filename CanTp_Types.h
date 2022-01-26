@@ -15,6 +15,11 @@
 #define CONFIG_CANTP_MAIN_FUNCTION_PERIOD (uint32)1
 #define CONFIG_CAN_2_0_OR_CAN_FD
 // #define CONFIG_CAN_FD_ONLY
+#if defined(CONFIG_CAN_2_0_OR_CAN_FD)
+#define CANTP_CAN_FRAME_SIZE 8
+#elif defined(CONFIG_CAN_FD_ONLY)
+#define CANTP_CAN_FRAME_SIZE 64
+#endif
 
 #if defined(CONFIG_CAN_2_0_OR_CAN_FD) && defined(CONFIG_CAN_FD_ONLY)
 #error                                                                                             \
