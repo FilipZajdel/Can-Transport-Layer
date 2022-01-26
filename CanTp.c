@@ -134,21 +134,21 @@ static CanTp_State_t CanTp_State;
 static CanTp_ConfigType config = {
     .channels = {
         {// Channel 0
-         .rxNSdu = {{.id = 1}, {.id = 2}, {.id = 3}, {.id = 4}, {.id = 5}},
+         .rxNSdu = {{.id = 101}, {.id = 102}, {.id = 103}, {.id = 104}, {.id = 105}},
          .rxNSduCount = 5,
-         .txNSdu = {{.id = 1}},
+         .txNSdu = {{.id = 201}},
          .txNSduCount = 1},
         {// Channel 1
-         .rxNSdu = {{.id = 6}, {.id = 7}, {.id = 8}},
+         .rxNSdu = {{.id = 106}, {.id = 107}, {.id = 108}},
          .rxNSduCount = 3,
-         .txNSdu = {{.id = 6}, {.id = 7}, {.id = 8}, {.id = 9}, {.id = 10}},
+         .txNSdu = {{.id = 206}, {.id = 207}, {.id = 208}, {.id = 209}, {.id = 210}},
          .txNSduCount = 5},
         {// Channel 2
          .rxNSduCount = 0,
-         .txNSdu = {{.id = 11}, {.id = 12}},
+         .txNSdu = {{.id = 211}, {.id = 212}},
          .txNSduCount = 2},
         {// Channel 3
-         .rxNSdu = {{.id = 13}, {.id = 14}, {.id = 15}},
+         .rxNSdu = {{.id = 113}, {.id = 114}, {.id = 115}},
          .rxNSduCount = 3,
          .txNSduCount = 0},
 
