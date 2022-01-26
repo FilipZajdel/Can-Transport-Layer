@@ -23,7 +23,12 @@ typedef enum
     CANTP_N_PCI_TYPE_CF = 0x02,
     CANTP_N_PCI_TYPE_FC = 0x03,
 } CanTp_PciType;
-
+typedef enum
+{
+    CANTP_FS_TYPE_CTS = 0x00,
+    CANTP_FS_TYPE_WT = 0x01,
+    CANTP_FS_TYPE_OVW = 0x02
+} CanTp_FsType;
 typedef enum
 {
     /**
@@ -79,6 +84,8 @@ typedef struct
     PduInfoType pduInfo;
     PduLengthType buffSize;
     PduLengthType aquiredBuffSize;
+    uint8 sn;
+    CanTp_FsType fs;
 
 } CanTp_RxConnection;
 
