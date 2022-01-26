@@ -21,7 +21,7 @@ jobs:
           # - CanTp_GetVersionInfo
           - CanTp_Init
           # - CanTp_Main
-          # - CanTp_RxInd
+          - CanTp_RxInd
           # - CanTp_Shutdown
           - CanTp_Transmit
           # - CanTp_TxConf

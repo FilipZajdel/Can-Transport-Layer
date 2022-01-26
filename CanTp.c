@@ -480,7 +480,7 @@ void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
     if (nsduDir == CANTP_NSDU_DIRECTION_RX) {
 
         if ((rxConn->nsdu->paddingActivation == CANTP_ON) && (PduInfoPtr->SduLength < 8)) {
-            Det_ReportRuntimeError(CANTP_MODULE_ID, 0, CANTP_RX_INDICATION_API_ID, CANTP_E_PADDING);
+            PduR_CanTpRxIndication(rxConn->nsdu->id, E_NOT_OK);
             return;
         }
         nAeSize = CanTp_GetAddrFieldLen(rxConn->nsdu->addressingFormat);
