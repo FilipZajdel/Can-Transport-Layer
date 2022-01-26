@@ -696,7 +696,7 @@ static inline void CanTp_FillTpHeader(CanTp_TxConnection *conn, CanTp_PciType pc
 
         case CANTP_N_PCI_TYPE_FF:
 #if defined(CONFIG_CAN_2_0_OR_CAN_FD)
-            *((uint16*)&buf[0]) = (CANTP_N_PCI_TYPE_FF << 12) | (conn->pduInfo.SduLength & 0x0FFF);
+            *((uint16 *)&buf[0]) = (CANTP_N_PCI_TYPE_FF << 12) | (conn->pduInfo.SduLength & 0x0FFF);
             conn->buf.payloadOffset = CANTP_FF_PCI_SIZE + addressingInfoOffset;
 #elif defined(CONFIG_CAN_FD_ONLY)
 #error "Implement CanTp_FillTpHeader for CAN_FD"
@@ -872,7 +872,6 @@ static CanTp_TxConnectionState CanTp_TxStateCFSendProcess(CanTp_TxConnection *co
     }
 
     return nextState;
-
 }
 
 static CanTp_TxConnectionState CanTp_TxStateCancel(CanTp_TxConnection *conn)
@@ -1002,4 +1001,23 @@ Std_ReturnType CanTp_CancelTransmit(PduIdType TxPduId)
     }
 
     return status;
+}
+
+void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
+{
+    CanTp_TxConnection *conn = getTxConnection(TxPduId);
+
+    if (conn == NULL) {
+        return;
+    }
+
+    if (result == E_OK) {
+        if (conn->activation == CANTP_TX_PROCESSING && conn->state != CANTP_TX_STATE_FREE) {
+            // @TODO: Inform appropriate timer
+        }
+    } else {
+        if (conn->activation == CANTP_TX_PROCESSING && conn->state != CANTP_TX_STATE_FREE) {
+            conn->state = CANTP_TX_STATE_CANCEL;
+        }
+    }
 }

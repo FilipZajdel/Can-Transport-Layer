@@ -20,7 +20,7 @@ jobs:
           - CanTp_ChangeParameter
           # - CanTp_GetVersionInfo
           - CanTp_Init
-          # - CanTp_Main
+          - CanTp_Main
           - CanTp_RxInd
           - CanTp_Shutdown
           - CanTp_Transmit

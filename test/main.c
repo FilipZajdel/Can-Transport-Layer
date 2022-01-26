@@ -86,6 +86,6 @@ extern TEST_LINKED_LIST_ENTRY CanTp_TxConfirmation_TEST_LIST[];
 
 TEST_LINKED_LIST = {
     CanTp_CancelReceive_TEST_LIST,   CanTp_CancelTransmit_TEST_LIST, CanTp_ReadParameter_TEST_LIST,
-    CanTp_ChangeParameter_TEST_LIST, CanTp_GetVersionInfo_TEST_LIST, CanTp_Init_TEST_LIST,
+    CanTp_ChangeParameter_TEST_LIST, CanTp_Init_TEST_LIST,
     CanTp_MainFunction_TEST_LIST,    CanTp_RxIndication_TEST_LIST,   CanTp_Shutdown_TEST_LIST,
-    CanTp_Transmit_TEST_LIST,        CanTp_TxConfirmation_TEST_LIST, TEST_LINKED_LIST_END};
+    CanTp_Transmit_TEST_LIST,        TEST_LINKED_LIST_END};
