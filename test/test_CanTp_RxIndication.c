@@ -15,7 +15,9 @@
 #define TEST_3_PDU_PAYLOAD_LEN 6
 #define TEST_3_PDU_ID 104
 
-uint8 testBuffer[8];
+uint8 testBuffer[64];
+
+FAKE_STATIC_VALUE_FUNC2(Std_ReturnType, CanIf_Transmit, PduIdType, const PduInfoType *);
 
 FAKE_STATIC_VALUE_FUNC3(BufReq_ReturnType, PduR_CanTpCopyRxData, PduIdType, const PduInfoType *,
                         PduLengthType *);
