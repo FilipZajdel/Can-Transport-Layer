@@ -8,6 +8,8 @@
 #define CANTP_IS_ON() (CanTp_State.activation == CANTP_ON)
 #define PARAM_UNUSED(param) (void)param
 #define ARR_SIZE(arr) (sizeof(arr) / (sizeof(*arr)))
+#define CANTP_SEQUENCE_NUMBER_START_VALUE 1U
+#define CANTP_SEQUENCE_NUMBER_INCREMENT_VALUE 1U
 
 #define CAN_2_0_MAX_LEN (uint8)8U
 #define CAN_FD_MAX_LEN (uint8)64U
@@ -44,9 +46,12 @@ typedef enum
      */
     CANTP_TX_STATE_SF_SEND_PROCESS,
     CANTP_TX_STATE_FF_SEND_REQ,
-    CANTP_TX_STATE_CF_SEND_REQ,
+    CANTP_TX_STATE_FF_SEND_PROCESS,
     CANTP_TX_STATE_WAIT_FC,
-    CANTP_TX_STATE_WAIT_CANIF_CONFIRM
+    CANTP_TX_STATE_CF_SEND_REQ,
+    CANTP_TX_STATE_CF_SEND_PROCESS,
+    CANTP_TX_STATE_WAIT_CANIF_CONFIRM,
+    CANTP_TX_STATE_CANCEL
 } CanTp_TxConnectionState;
 
 typedef enum
@@ -332,7 +337,7 @@ void CanTp_Shutdown(void)
     /** Note: rxConnections and txConnections have the same size */
     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections); connItr++) {
         CanTp_State.rxConnections[connItr].activation = CANTP_RX_WAIT;
-        CanTp_State.rxConnections[connItr].activation = CANTP_TX_WAIT;
+        CanTp_State.txConnections[connItr].activation = CANTP_TX_WAIT;
     }
 }
 
@@ -371,7 +376,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType *PduInfoPtr)
     /** Note: Only SF and FF transmission is triggered here. CF frames and FC
      * are triggered from RX/TX state machines.
      */
-    if (PduInfoPtr->SduLength < maxNsduLength) {
+    if (PduInfoPtr->SduLength <= maxNsduLength) {
         connection->state = CANTP_TX_STATE_SF_SEND_REQ;
     } else {
         connection->state = CANTP_TX_STATE_FF_SEND_REQ;
@@ -607,6 +612,7 @@ static CanTp_RxConnectionState CanTp_RxIndCF(CanTp_RxConnection *conn,
 static CanTp_RxConnectionState CanTp_RxIndFC(CanTp_TxConnection *conn,
                                              const PduInfoType *PduInfoPtr, uint8 nAeSize)
 {
+    conn->state = CANTP_TX_STATE_CF_SEND_REQ;
 }
 
 void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
@@ -670,7 +676,6 @@ void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
  */
 static inline void CanTp_FillTpHeader(CanTp_TxConnection *conn, CanTp_PciType pciType)
 {
-    uint16 *header = NULL;
     uint8 addressingInfoOffset = CanTp_GetAddrFieldLen(conn->nsdu->addressingFormat);
     uint8 *buf = &conn->buf.data[addressingInfoOffset];
 
@@ -683,7 +688,7 @@ static inline void CanTp_FillTpHeader(CanTp_TxConnection *conn, CanTp_PciType pc
 #if defined(CONFIG_CAN_2_0_OR_CAN_FD)
             buf[0] &= (uint8)0xF0;
             buf[0] |= (uint8)(conn->pduInfo.SduLength & 0x0F);
-            conn->buf.payloadOffset = 1;
+            conn->buf.payloadOffset = CANTP_SF_PCI_SIZE + addressingInfoOffset;
 #elif defined(CONFIG_CAN_FD_ONLY)
 #error "Implement CanTp_FillTpHeader for CAN_FD"
 #endif
@@ -691,10 +696,8 @@ static inline void CanTp_FillTpHeader(CanTp_TxConnection *conn, CanTp_PciType pc
 
         case CANTP_N_PCI_TYPE_FF:
 #if defined(CONFIG_CAN_2_0_OR_CAN_FD)
-            buf[0] &= (uint8)0xF0;
-            header = (uint16 *)&buf[0];
-            *header |= ((uint16)conn->pduInfo.SduLength & (uint16)0x0FFF);
-            conn->buf.payloadOffset = 2;
+            *((uint16*)&buf[0]) = (CANTP_N_PCI_TYPE_FF << 12) | (conn->pduInfo.SduLength & 0x0FFF);
+            conn->buf.payloadOffset = CANTP_FF_PCI_SIZE + addressingInfoOffset;
 #elif defined(CONFIG_CAN_FD_ONLY)
 #error "Implement CanTp_FillTpHeader for CAN_FD"
 #endif
@@ -704,7 +707,7 @@ static inline void CanTp_FillTpHeader(CanTp_TxConnection *conn, CanTp_PciType pc
 #if defined(CONFIG_CAN_2_0_OR_CAN_FD)
             buf[0] &= (uint8)0xF0;
             buf[0] |= (uint8)(conn->sequenceNumber & 0x0F);
-            conn->buf.payloadOffset = 1;
+            conn->buf.payloadOffset = CANTP_CF_PCI_SIZE + addressingInfoOffset;
 #elif defined(CONFIG_CAN_FD_ONLY)
 #error "Implement CanTp_FillTpHeader for CAN_FD"
 #endif
@@ -751,9 +754,134 @@ static CanTp_TxConnectionState CanTp_TxStateSFProcess(CanTp_TxConnection *conn)
         // Inform higher layer about successful transmission
         PduR_CanTpTxConfirmation(conn->nsdu->id, E_OK);
         nextState = CANTP_TX_STATE_FREE;
+        conn->activation = CANTP_TX_WAIT;
     } else {
         nextState = CANTP_TX_STATE_SF_SEND_PROCESS;
     }
+
+    return nextState;
+}
+
+static CanTp_TxConnectionState CanTp_TxStateFFSendReq(CanTp_TxConnection *conn)
+{
+    PduInfoType pduInfo;
+    PduLengthType remainingLength;
+    BufReq_ReturnType copyTxRet;
+    CanTp_TxConnectionState nextState;
+
+    CanTp_FillTpHeader(conn, CANTP_N_PCI_TYPE_FF);
+
+    pduInfo.MetaDataPtr = NULL;
+    pduInfo.SduDataPtr = &conn->buf.data[conn->buf.payloadOffset];
+    pduInfo.SduLength = CAN_2_0_MAX_LEN - conn->buf.payloadOffset;
+
+    copyTxRet = PduR_CanTpCopyTxData(conn->nsdu->id, &pduInfo, NULL, &remainingLength);
+
+    if (copyTxRet == BUFREQ_OK) {
+        conn->buf.payloadLength = pduInfo.SduLength + conn->buf.payloadOffset;
+        conn->pduInfo.SduLength = remainingLength;
+        nextState = CANTP_TX_STATE_FF_SEND_PROCESS;
+    } else {
+        nextState = CANTP_TX_STATE_FF_SEND_REQ;
+    }
+
+    return nextState;
+}
+
+static CanTp_TxConnectionState CanTp_TxStateFFSendProcess(CanTp_TxConnection *conn)
+{
+    CanTp_TxConnectionState nextState;
+    Std_ReturnType transmitResult;
+    const PduInfoType pduInfo = {
+        .MetaDataPtr = NULL, .SduDataPtr = conn->buf.data, .SduLength = conn->buf.payloadLength};
+
+    transmitResult = CanIf_Transmit(conn->nsdu->id, &pduInfo);
+    if (transmitResult == E_OK) {
+        // Start waiting for FC
+        nextState = CANTP_TX_STATE_WAIT_FC;
+        conn->sequenceNumber = CANTP_SEQUENCE_NUMBER_START_VALUE;
+    } else {
+        nextState = CANTP_TX_STATE_FF_SEND_PROCESS;
+    }
+
+    return nextState;
+}
+
+static CanTp_TxConnectionState CanTp_TxStateFFWaitFC(CanTp_TxConnection *conn)
+{
+    // Do nothing
+    return conn->state;
+}
+
+static CanTp_TxConnectionState CanTp_TxStateCFSendReq(CanTp_TxConnection *conn)
+{
+    PduInfoType pduInfo;
+    PduLengthType remainingLength;
+    BufReq_ReturnType copyTxRet;
+    CanTp_TxConnectionState nextState;
+    uint8 maxCFSize;
+
+    CanTp_FillTpHeader(conn, CANTP_N_PCI_TYPE_CF);
+    maxCFSize = CAN_2_0_MAX_LEN - conn->buf.payloadOffset;
+
+    pduInfo.MetaDataPtr = NULL;
+    pduInfo.SduDataPtr = &conn->buf.data[conn->buf.payloadOffset];
+
+    if (conn->pduInfo.SduLength <= maxCFSize) {
+        pduInfo.SduLength = conn->pduInfo.SduLength;
+    } else {
+        pduInfo.SduLength = maxCFSize;
+    }
+
+    // Lock the data within PduR
+    copyTxRet = PduR_CanTpCopyTxData(conn->nsdu->id, &pduInfo, NULL, &remainingLength);
+
+    if (copyTxRet == BUFREQ_OK) {
+        conn->buf.payloadLength = pduInfo.SduLength + conn->buf.payloadOffset;
+        conn->pduInfo.SduLength = remainingLength;
+        conn->sequenceNumber += CANTP_SEQUENCE_NUMBER_INCREMENT_VALUE;
+        nextState = CANTP_TX_STATE_CF_SEND_PROCESS;
+    } else {
+        nextState = CANTP_TX_STATE_CF_SEND_REQ;
+    }
+
+    return nextState;
+}
+
+static CanTp_TxConnectionState CanTp_TxStateCFSendProcess(CanTp_TxConnection *conn)
+{
+    CanTp_TxConnectionState nextState;
+    Std_ReturnType transmitResult;
+    const uint8 maxCFSize = CAN_2_0_MAX_LEN - conn->buf.payloadOffset;
+    const PduInfoType pduInfo = {
+        .MetaDataPtr = NULL, .SduDataPtr = conn->buf.data, .SduLength = conn->buf.payloadLength};
+
+    transmitResult = CanIf_Transmit(conn->nsdu->id, &pduInfo);
+    if (transmitResult == E_OK) {
+        // Determine if further fragmentation is needed
+        if (conn->pduInfo.SduLength > 0) {
+            nextState = CANTP_TX_STATE_CF_SEND_REQ;
+        } else {
+            // No fragmentation needed, inform higher layer and free nsdu
+            PduR_CanTpTxConfirmation(conn->nsdu->id, E_OK);
+            nextState = CANTP_TX_STATE_FREE;
+            conn->activation = CANTP_TX_WAIT;
+        }
+    } else {
+        nextState = CANTP_TX_STATE_CF_SEND_PROCESS;
+    }
+
+    return nextState;
+
+}
+
+static CanTp_TxConnectionState CanTp_TxStateCancel(CanTp_TxConnection *conn)
+{
+    CanTp_TxConnectionState nextState = CANTP_TX_STATE_FREE;
+
+    PduR_CanTpTxConfirmation(conn->nsdu->id, E_NOT_OK);
+
+    conn->activation = CANTP_TX_WAIT;
 
     return nextState;
 }
@@ -775,6 +903,24 @@ static void CanTp_TxIteration(void)
                 nextState = CanTp_TxStateSFProcess(conn);
                 break;
             case CANTP_TX_STATE_FF_SEND_REQ:
+                nextState = CanTp_TxStateFFSendReq(conn);
+                break;
+            case CANTP_TX_STATE_FF_SEND_PROCESS:
+                nextState = CanTp_TxStateFFSendProcess(conn);
+                break;
+            case CANTP_TX_STATE_WAIT_FC:
+                nextState = CanTp_TxStateFFWaitFC(conn);
+                break;
+            case CANTP_TX_STATE_CF_SEND_REQ:
+                nextState = CanTp_TxStateCFSendReq(conn);
+                break;
+            case CANTP_TX_STATE_CF_SEND_PROCESS:
+                nextState = CanTp_TxStateCFSendProcess(conn);
+                break;
+            case CANTP_TX_STATE_FREE:
+                break;
+            case CANTP_TX_STATE_CANCEL:
+                nextState = CanTp_TxStateCancel(conn);
                 break;
             default:
                 break;
@@ -838,4 +984,22 @@ void CanTp_MainFunction(void)
         CanTp_ConnectionsTimersInc();
         CanTp_State.currentTime += CONFIG_CANTP_MAIN_FUNCTION_PERIOD;
     }
+}
+
+Std_ReturnType CanTp_CancelTransmit(PduIdType TxPduId)
+{
+    Std_ReturnType status = E_NOT_OK;
+
+    CanTp_TxConnection *conn = getTxConnection(TxPduId);
+
+    if (!conn) {
+        return status;
+    }
+
+    if (conn->activation == CANTP_TX_PROCESSING) {
+        conn->state = CANTP_TX_STATE_CANCEL;
+        status = E_OK;
+    }
+
+    return status;
 }
