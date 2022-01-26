@@ -14,10 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         test_case:
-          # - CanTp_CancelReceive
+          - CanTp_CancelReceive
           # - CanTp_CancelTransmit
-          # - CanTp_Read
-          # - CanTp_ChangeParam
+          - CanTp_ReadParameter
+          - CanTp_ChangeParameter
           # - CanTp_GetVersionInfo
           - CanTp_Init
           # - CanTp_Main

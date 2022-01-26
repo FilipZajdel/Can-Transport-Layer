@@ -187,7 +187,6 @@ static CanTp_State_t CanTp_State = {
             {.nsdu = &config.channels[3].rxNSdu[0], .activation = CANTP_RX_WAIT},
             {.nsdu = &config.channels[3].rxNSdu[1], .activation = CANTP_RX_WAIT},
             {.nsdu = &config.channels[3].rxNSdu[2], .activation = CANTP_RX_WAIT},
-
         },
     .txConnections =
         {
@@ -199,7 +198,6 @@ static CanTp_State_t CanTp_State = {
             {.nsdu = &config.channels[1].txNSdu[4], .activation = CANTP_TX_WAIT},
             {.nsdu = &config.channels[2].txNSdu[0], .activation = CANTP_TX_WAIT},
             {.nsdu = &config.channels[2].txNSdu[1], .activation = CANTP_TX_WAIT},
-
         },
 };
 
@@ -218,12 +216,10 @@ static CanTp_TxConnection *getTxConnection(PduIdType PduId)
     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.txConnections) && !txConnection;
          connItr++) {
 
-        if (!CanTp_State.txConnections[connItr].nsdu) {
-            continue;
-        }
-
-        if (CanTp_State.txConnections[connItr].nsdu->id == PduId) {
-            txConnection = &CanTp_State.txConnections[connItr];
+        if (CanTp_State.txConnections[connItr].nsdu != NULL) {
+            if (CanTp_State.txConnections[connItr].nsdu->id == PduId) {
+                txConnection = &CanTp_State.txConnections[connItr];
+            }
         }
     }
 
@@ -237,8 +233,10 @@ static CanTp_RxConnection *getRxConnection(PduIdType PduId)
 
     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections) && !rxConnection;
          connItr++) {
-        if (CanTp_State.rxConnections[connItr].nsdu->id == PduId) {
-            rxConnection = &CanTp_State.rxConnections[connItr];
+        if (CanTp_State.rxConnections[connItr].nsdu != NULL) {
+            if (CanTp_State.rxConnections[connItr].nsdu->id == PduId) {
+                rxConnection = &CanTp_State.rxConnections[connItr];
+            }
         }
     }
 
@@ -419,9 +417,70 @@ Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
 {
     CanTp_RxConnection *conn = getRxConnection(RxPduId);
     if (conn != NULL) {
-        conn->state = CANTP_RX_STATE_ABORT;
-        PduR_CanTpRxIndication(conn->nsdu->id, E_NOT_OK);
+        if ((conn->activation == CANTP_RX_PROCESSING)) {
+
+            conn->activation = CANTP_RX_WAIT;
+            conn->state = CANTP_RX_STATE_ABORT;
+            PduR_CanTpRxIndication(conn->nsdu->id, E_NOT_OK);
+            return E_OK;
+        } else {
+            return E_NOT_OK;
+        }
+    } else {
+        return E_NOT_OK;
     }
+}
+
+Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, uint16 value)
+{
+    Std_ReturnType result = E_NOT_OK;
+    CanTp_RxConnection *conn = getRxConnection(id);
+    if ((conn != NULL) && (conn->activation == CANTP_RX_WAIT) &&
+        (conn->state == CANTP_RX_STATE_FREE) && (value <= 0xFF)) {
+        switch (parameter) {
+            case TP_STMIN:
+                conn->nsdu->STmin = value;
+                result = E_OK;
+                break;
+            case TP_BS:
+                conn->nsdu->bs = value;
+                result = E_OK;
+                break;
+            case TP_BC:
+            default:
+                break;
+        }
+    }
+    return result;
+}
+
+Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint16 *value)
+{
+    Std_ReturnType result = E_NOT_OK;
+    uint16 readVal;
+    CanTp_RxConnection *conn = getRxConnection(id);
+
+    if (conn != NULL) {
+        switch (parameter) {
+            case TP_STMIN:
+                readVal = conn->nsdu->STmin;
+                result = E_OK;
+                break;
+            case TP_BS:
+                readVal = conn->nsdu->bs;
+                result = E_OK;
+                break;
+            case TP_BC:
+            default:
+                break;
+        }
+        if ((result == E_OK) && (readVal <= 0xff)) {
+            *value = readVal;
+        } else {
+            result = E_NOT_OK;
+        }
+    }
+    return result;
 }
 
 static CanTp_RxConnectionState CanTp_RxIndSF(CanTp_RxConnection *conn,
@@ -591,7 +650,7 @@ void CanTp_RxIndication(PduIdType RxPduId, const PduInfoType *PduInfoPtr)
         }
 
     } else if (nsduDir == CANTP_NSDU_DIRECTION_TX) {
-        if (txConn->activation != CANTP_TX_STATE_WAIT_FC) {
+        if (txConn->state != CANTP_TX_STATE_WAIT_FC) {
             return;
         }
         nAeSize = CanTp_GetAddrFieldLen(rxConn->nsdu->addressingFormat);
