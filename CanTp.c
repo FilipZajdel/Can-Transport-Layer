@@ -9,6 +9,10 @@
 #define PARAM_UNUSED(param) (void)param
 #define ARR_SIZE(arr) sizeof(arr) / (sizeof(*arr))
 
+#define CANTP_SF_PCI_SIZE 0x01
+#define CANTP_FF_PCI_SIZE 0x02
+#define CANTP_CF_PCI_SIZE 0x01
+
 typedef enum
 {
     CANTP_N_PCI_TYPE_SF = 0x00,
