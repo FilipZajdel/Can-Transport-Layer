@@ -66,13 +66,13 @@ typedef enum
 
 typedef struct
 {
+    uint8 payloadOffset;
+    uint8 payloadLength;
 #if defined(CONFIG_CAN_2_0_OR_CAN_FD)
     uint8 data[CAN_2_0_MAX_LEN];
 #elif defined(CONFIG_CAN_FD_ONLY)
     uint8 data[CAN_FD_MAX_LEN];
 #endif
-    uint8 payloadOffset;
-    uint8 payloadLength;
 } CanTp_ConnectionBuffer;
 
 /**
@@ -217,7 +217,6 @@ static inline void memzero(uint8_t *ptr, uint32_t size)
 
 static CanTp_TxConnection *getTxConnection(PduIdType PduId)
 {
-    CanTp_ChannelType *channels = config.channels;
     CanTp_TxConnection *txConnection = NULL;
 
     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.txConnections) && !txConnection;
@@ -235,7 +234,6 @@ static CanTp_TxConnection *getTxConnection(PduIdType PduId)
 
 static CanTp_RxConnection *getRxConnection(PduIdType PduId)
 {
-    CanTp_ChannelType *channels = config.channels;
     CanTp_RxConnection *rxConnection = NULL;
 
     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections) && !rxConnection;
@@ -325,7 +323,7 @@ void CanTp_Init(const CanTp_ConfigType *CfgPtr)
     /** Note: rxConnections and txConnections have the same size */
     for (uint32 connItr = 0; connItr < ARR_SIZE(CanTp_State.rxConnections); connItr++) {
         CanTp_State.rxConnections[connItr].activation = CANTP_RX_WAIT;
-        CanTp_State.rxConnections[connItr].activation = CANTP_TX_WAIT;
+        CanTp_State.txConnections[connItr].activation = CANTP_TX_WAIT;
     }
 
     CanTp_State.activation = CANTP_ON;
@@ -464,10 +462,11 @@ Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, ui
 Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint16 *value)
 {
     Std_ReturnType result = E_NOT_OK;
-    uint16 readVal;
     CanTp_RxConnection *conn = getRxConnection(id);
 
     if (conn != NULL) {
+        uint16 readVal;
+
         switch (parameter) {
             case TP_STMIN:
                 readVal = conn->nsdu->STmin;
@@ -928,7 +927,6 @@ static CanTp_TxConnectionState CanTp_TxStateCFSendProcess(CanTp_TxConnection *co
 {
     CanTp_TxConnectionState nextState;
     Std_ReturnType transmitResult;
-    const uint8 maxCFSize = CAN_2_0_MAX_LEN - conn->buf.payloadOffset;
     const PduInfoType pduInfo = {
         .MetaDataPtr = NULL, .SduDataPtr = conn->buf.data, .SduLength = conn->buf.payloadLength};
 

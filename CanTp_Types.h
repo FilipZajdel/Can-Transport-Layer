@@ -186,10 +186,10 @@ typedef struct
 
 typedef struct
 {
-    CanTp_RxNSduType rxNSdu[CONFIG_CANTP_MAX_RX_NSDU_PER_CHANNEL];
     uint32 rxNSduCount;
-    CanTp_TxNSduType txNSdu[CONFIG_CANTP_MAX_TX_NSDU_PER_CHANNEL];
     uint32 txNSduCount;
+    CanTp_RxNSduType rxNSdu[CONFIG_CANTP_MAX_RX_NSDU_PER_CHANNEL];
+    CanTp_TxNSduType txNSdu[CONFIG_CANTP_MAX_TX_NSDU_PER_CHANNEL];
 } CanTp_ChannelType;
 
 typedef struct
